@@ -8,6 +8,8 @@ export type TimeOfDay = 'morning' | 'midday' | 'sunset' | 'night';
 
 export type WeatherType = 'clear' | 'light_snow' | 'blizzard';
 
+export type PerformanceMode = 'turbo' | 'balanced' | 'high';
+
 export type TruckColorId = 'orange' | 'cyan' | 'red' | 'yellow' | 'green' | 'violet';
 
 export interface TruckColorOption {
@@ -89,5 +91,7 @@ export interface GameStats {
   timeOfDayClock: string; // e.g. "08:15 AM", "01:30 PM"
   timeOfDayProgress: number; // 0 to 1 continuous phase of the diurnal cycle
   isAutoTimeOfDay: boolean;
+  performanceMode: PerformanceMode;
+  fps?: number;
   truckPos?: { x: number; z: number; heading: number };
 }

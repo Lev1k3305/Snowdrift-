@@ -14,7 +14,7 @@ import {
   glowWindowMat,
 } from './proceduralModels.ts';
 import { SnowSystem } from './snowSystem.ts';
-import { FloatingText, GameStats, LevelConfig, Obstacle, ScreenState, TimeOfDay, WeatherType } from './types.ts';
+import { FloatingText, GameStats, LevelConfig, Obstacle, PerformanceMode, ScreenState, TimeOfDay, WeatherType } from './types.ts';
 
 // Pre-allocated reusable math vectors for zero GC in render loop
 const _tempScreenVec = new THREE.Vector3();
@@ -128,6 +128,12 @@ export class GameEngine {
   private hornCooldown: number = 0;
   private smokeTimer: number = 0;
 
+  // Performance & Mobile optimization
+  private performanceMode: PerformanceMode = 'turbo';
+  private measuredFps: number = 60;
+  private fpsHistory: number[] = [];
+  private autoTuneCounter: number = 0;
+
   // Floating score popups
   private floatingTexts: FloatingText[] = [];
   private nextTextId: number = 1;
@@ -168,14 +174,42 @@ export class GameEngine {
     this.camera.lookAt(0, 0, 0);
 
     const isHeadless = navigator.webdriver || /HeadlessChrome/i.test(navigator.userAgent);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+      ('ontouchstart' in window && window.innerWidth <= 1024);
+
+    let initialMode: PerformanceMode = 'balanced';
+    try {
+      const saved = localStorage.getItem('snowplow_performance_mode') as PerformanceMode;
+      if (saved === 'turbo' || saved === 'balanced' || saved === 'high') {
+        initialMode = saved;
+      } else if (isMobile) {
+        initialMode = 'turbo';
+      }
+    } catch {
+      if (isMobile) initialMode = 'turbo';
+    }
+    this.performanceMode = initialMode;
+
+    const initialPixelRatio = isHeadless
+      ? 1
+      : this.performanceMode === 'turbo'
+      ? 1.0
+      : this.performanceMode === 'balanced'
+      ? Math.min(window.devicePixelRatio, 1.25)
+      : Math.min(window.devicePixelRatio, 1.75);
+
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: this.performanceMode !== 'turbo',
+      powerPreference: 'high-performance',
+    });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(isHeadless ? 1 : Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(initialPixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = !isHeadless;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type =
+      this.performanceMode === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 
     this.container.appendChild(this.renderer.domElement);
 
@@ -187,8 +221,11 @@ export class GameEngine {
     // 3. Lighting Rig
     this.setupLighting();
 
-    // 4. Particle System
+    // 4. Particle System with Adaptive Quality
     this.particleSystem = new ParticleSystem(this.scene);
+    this.particleSystem.setQuality(
+      this.performanceMode === 'turbo' ? 'low' : this.performanceMode === 'balanced' ? 'medium' : 'high'
+    );
 
     // 5. Load Level
     this.loadLevel(0);
@@ -202,12 +239,15 @@ export class GameEngine {
   }
 
   private setupLighting() {
+    const shadowDim =
+      this.performanceMode === 'turbo' ? 512 : this.performanceMode === 'balanced' ? 1024 : 2048;
+
     // Directional Key Sun Light
     this.dirLight = new THREE.DirectionalLight(0xfff5ea, 2.2);
     this.dirLight.position.set(30, 45, 25);
     this.dirLight.castShadow = true;
-    this.dirLight.shadow.mapSize.width = 2048;
-    this.dirLight.shadow.mapSize.height = 2048;
+    this.dirLight.shadow.mapSize.width = shadowDim;
+    this.dirLight.shadow.mapSize.height = shadowDim;
     this.dirLight.shadow.camera.near = 10;
     this.dirLight.shadow.camera.far = 120;
     const d = 32;
@@ -506,6 +546,7 @@ export class GameEngine {
       this.snowSystem.dispose();
     }
     this.snowSystem = new SnowSystem(this.scene, this.currentLevel.mapWidth, this.currentLevel.mapLength);
+    this.snowSystem.setPerformanceMode(this.performanceMode);
 
     // 2. Clear old props and obstacles
     this.obstacleMeshes.forEach((m) => {
@@ -879,6 +920,19 @@ export class GameEngine {
     const rawDelta = this.clock.getDelta();
     const dt = Math.min(rawDelta, 0.05);
 
+    // Measure FPS and auto-tune graphics for low-end / older devices
+    const currentFps = rawDelta > 0 ? Math.min(120, 1 / rawDelta) : 60;
+    this.fpsHistory.push(currentFps);
+    if (this.fpsHistory.length > 45) this.fpsHistory.shift();
+    this.measuredFps = this.fpsHistory.reduce((a, b) => a + b, 0) / this.fpsHistory.length;
+
+    this.autoTuneCounter++;
+    if (this.autoTuneCounter % 180 === 0 && this.performanceMode !== 'turbo') {
+      if (this.measuredFps < 22) {
+        this.setPerformanceMode('turbo');
+      }
+    }
+
     if (this.screenState === 'playing') {
       this.levelElapsedTime += dt;
 
@@ -1227,6 +1281,8 @@ export class GameEngine {
         timeOfDayClock: this.inGameClockString,
         timeOfDayProgress: this.timeOfDayPhase,
         isAutoTimeOfDay: this.timeOfDayProgressionMode === 'auto',
+        performanceMode: this.performanceMode,
+        fps: Math.round(this.measuredFps),
         truckPos: {
           x: this.truckPos.x,
           z: this.truckPos.z,
@@ -1479,6 +1535,64 @@ export class GameEngine {
 
   public getTimeOfDayMode(): 'auto' | TimeOfDay {
     return this.timeOfDayProgressionMode;
+  }
+
+  public getPerformanceMode(): PerformanceMode {
+    return this.performanceMode;
+  }
+
+  public setPerformanceMode(mode: PerformanceMode) {
+    this.performanceMode = mode;
+    try {
+      localStorage.setItem('snowplow_performance_mode', mode);
+    } catch {
+      // ignore
+    }
+
+    const pr =
+      mode === 'turbo'
+        ? 1.0
+        : mode === 'balanced'
+        ? Math.min(window.devicePixelRatio, 1.25)
+        : Math.min(window.devicePixelRatio, 1.75);
+
+    this.renderer.setPixelRatio(pr);
+
+    const shadowDim = mode === 'turbo' ? 512 : mode === 'balanced' ? 1024 : 2048;
+    if (this.dirLight) {
+      this.dirLight.shadow.mapSize.set(shadowDim, shadowDim);
+      if (this.dirLight.shadow.map) {
+        this.dirLight.shadow.map.dispose();
+        this.dirLight.shadow.map = null;
+      }
+    }
+    this.renderer.shadowMap.type =
+      mode === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+
+    this.particleSystem?.setQuality(
+      mode === 'turbo' ? 'low' : mode === 'balanced' ? 'medium' : 'high'
+    );
+    this.snowSystem?.setPerformanceMode(mode);
+
+    const labels: Record<PerformanceMode, string> = {
+      turbo: '⚡ ТУРБО (Для старых телефонов)',
+      balanced: '⚖️ БАЛАНС',
+      high: '✨ ВЫСОКОЕ КАЧЕСТВО',
+    };
+    this.addFloatingText(
+      `Графика: ${labels[mode]}`,
+      this.truckPos.x,
+      3.2,
+      this.truckPos.z,
+      '#38bdf8'
+    );
+  }
+
+  public cyclePerformanceMode() {
+    const modes: PerformanceMode[] = ['turbo', 'balanced', 'high'];
+    const curIdx = modes.indexOf(this.performanceMode);
+    const nextMode = modes[(curIdx + 1) % modes.length];
+    this.setPerformanceMode(nextMode);
   }
 
   public dispose() {

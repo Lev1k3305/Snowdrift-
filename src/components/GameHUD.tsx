@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Pause, Wrench, Sparkles, Zap, Flame, Compass, Sun, CloudSnow, Wind, Sunrise, Sunset, Moon, Clock, Smartphone } from 'lucide-react';
+import { Volume2, VolumeX, Pause, Wrench, Sparkles, Zap, Flame, Compass, Sun, CloudSnow, Wind, Sunrise, Sunset, Moon, Clock, Smartphone, Gauge } from 'lucide-react';
 import { GameStats, LevelConfig } from '../game/types.ts';
 import { GameEngine } from '../game/gameEngine.ts';
 import { Minimap } from './Minimap.tsx';
@@ -16,6 +16,7 @@ interface GameHUDProps {
   onHonk: () => void;
   onCycleWeather?: () => void;
   onCycleTimeOfDay?: () => void;
+  onCyclePerformance?: () => void;
 }
 
 export const GameHUD: React.FC<GameHUDProps> = ({
@@ -29,6 +30,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onHonk,
   onCycleWeather,
   onCycleTimeOfDay,
+  onCyclePerformance,
 }) => {
   const [showInstallModal, setShowInstallModal] = useState(false);
 
@@ -231,6 +233,49 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                   {Math.round(stats.timeOfDayProgress * 100)}% Day
                 </span>
                 <kbd className="hidden sm:inline bg-slate-800 text-[9px] px-1 rounded text-slate-400">T</kbd>
+              </div>
+            </div>
+          </button>
+
+          {/* Adaptive Performance Mode Badge (Turbo for old phones / Balanced / High) */}
+          <button
+            onClick={onCyclePerformance}
+            className={`pointer-events-auto flex items-center gap-2.5 px-3 py-2 rounded-2xl border transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md ${
+              stats.performanceMode === 'turbo'
+                ? 'bg-amber-950/85 border-amber-400/80 shadow-[0_0_15px_rgba(251,191,36,0.3)]'
+                : stats.performanceMode === 'balanced'
+                ? 'bg-slate-900/85 border-slate-700/80 shadow-md'
+                : 'bg-indigo-950/85 border-indigo-500/60 shadow-[0_0_15px_rgba(99,102,241,0.25)]'
+            }`}
+            title="Графика / Оптимизация (⚡ Турбо для старых телефонов · Клик или клавиша P)"
+          >
+            <div className="p-1.5 rounded-xl bg-slate-800/80">
+              <Gauge className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="flex flex-col items-start text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-white">
+                  {stats.performanceMode === 'turbo'
+                    ? 'Турбо'
+                    : stats.performanceMode === 'balanced'
+                    ? 'Баланс'
+                    : 'Высокие'}
+                </span>
+                <span
+                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                    stats.performanceMode === 'turbo'
+                      ? 'bg-amber-500/25 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                  }`}
+                >
+                  {stats.fps || 60} FPS
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono mt-0.5">
+                <span className="text-amber-300">
+                  {stats.performanceMode === 'turbo' ? 'Для старых тел.' : 'Стандарт'}
+                </span>
+                <kbd className="hidden sm:inline bg-slate-800 text-[9px] px-1 rounded text-slate-400">P</kbd>
               </div>
             </div>
           </button>

@@ -39,6 +39,12 @@ export class SnowSystem {
   // 3D Snow Drift mounds
   private drifts: SnowDriftData[] = [];
   private driftMeshes: Map<number, THREE.Mesh> = new Map();
+  private performanceMode: 'turbo' | 'balanced' | 'high' = 'balanced';
+  private textureFrameCounter: number = 0;
+
+  public setPerformanceMode(mode: 'turbo' | 'balanced' | 'high') {
+    this.performanceMode = mode;
+  }
 
   constructor(scene: THREE.Scene, mapWidth: number, mapLength: number) {
     this.scene = scene;
@@ -336,9 +342,14 @@ export class SnowSystem {
     }
     this.ctx.restore();
 
-    this.snowTexture.needsUpdate = true;
+    // Throttled canvas texture upload to avoid choking mobile GPU memory bus
+    this.textureFrameCounter++;
+    const textureSyncFreq = this.performanceMode === 'turbo' ? 3 : (this.performanceMode === 'balanced' ? 2 : 1);
+    if (this.textureFrameCounter % textureSyncFreq === 0) {
+      this.snowTexture.needsUpdate = true;
+    }
 
-    // 2. Physical 3D Snow Heightmap Displacement
+    // 2. Physical 3D Snow Heightmap Displacement (Optimized Spatial Bounding Box)
     const pos = this.snowGeo.attributes.position;
     const bladeRadius = bladeWidth * 0.58;
     const bladeRadiusSq = bladeRadius * bladeRadius;
@@ -353,38 +364,38 @@ export class SnowSystem {
     const speedRatio = Math.min(1.4, Math.max(0.7, plowSpeed / 3.0));
     const carveHeightRate = (isHeated ? 0.22 : 0.11) * speedRatio;
 
-    // Direct TypedArray access optimization:
-    // Accessing pos.array (Float32Array) directly instead of calling pos.getX/Z/setY
-    // eliminates 5,300+ method call overheads per plowing frame, significantly speeding up physics ticks.
-    const posArr = pos.array as Float32Array;
-    const vertexCount = pos.count;
+    // PlaneGeometry creates a grid of (snowSegments + 1) vertices along X and Z
+    const cols = this.snowSegments + 1;
+    const colMin = Math.max(0, Math.floor(((minX + this.mapWidth / 2) / this.mapWidth) * this.snowSegments));
+    const colMax = Math.min(this.snowSegments, Math.ceil(((maxX + this.mapWidth / 2) / this.mapWidth) * this.snowSegments));
+    const rowMin = Math.max(0, Math.floor(((minZ + this.mapLength / 2) / this.mapLength) * this.snowSegments));
+    const rowMax = Math.min(this.snowSegments, Math.ceil(((maxZ + this.mapLength / 2) / this.mapLength) * this.snowSegments));
 
-    for (let i = 0; i < vertexCount; i++) {
-      const idx3 = i * 3;
-      const vx = posArr[idx3];
-      const vz = posArr[idx3 + 2];
+    for (let r = rowMin; r <= rowMax; r++) {
+      const rowOffset = r * cols;
+      for (let c = colMin; c <= colMax; c++) {
+        const i = rowOffset + c;
+        const vx = pos.getX(i);
+        const vz = pos.getZ(i);
 
-      if (vx >= minX && vx <= maxX && vz >= minZ && vz <= maxZ) {
-        const dx = vx - bladePos.x;
-        const dz = vz - bladePos.z;
-        const distSq = dx * dx + dz * dz;
-
+        const distSq = (vx - bladePos.x) * (vx - bladePos.x) + (vz - bladePos.z) * (vz - bladePos.z);
         if (distSq <= bladeRadiusSq) {
-          const curY = posArr[idx3 + 1];
+          const curY = pos.getY(i);
           if (curY > 0.02) {
             if (curY > 0.15) {
               result.isDeepSnow = true;
             }
             // Sinks downward as snow is scooped away
-            posArr[idx3 + 1] = Math.max(0.016, curY - carveHeightRate);
+            const newY = Math.max(0.016, curY - carveHeightRate);
+            pos.setY(i, newY);
             verticesModified = true;
             result.isPlowingSnow = true;
           }
         } else if (distSq <= bermRadiusSq) {
           // Displaced snow forms a subtle raised snowbank ridge along the road edges
-          const curY = posArr[idx3 + 1];
+          const curY = pos.getY(i);
           if (curY > 0.05 && curY < 0.44) {
-            posArr[idx3 + 1] = Math.min(0.44, curY + 0.012);
+            pos.setY(i, Math.min(0.44, curY + 0.012));
             verticesModified = true;
           }
         }
@@ -394,7 +405,8 @@ export class SnowSystem {
     if (verticesModified) {
       pos.needsUpdate = true;
       this.normalUpdateCounter++;
-      if (this.normalUpdateCounter % 4 === 0) {
+      const normalFreq = this.performanceMode === 'turbo' ? 12 : (this.performanceMode === 'balanced' ? 6 : 3);
+      if (this.normalUpdateCounter % normalFreq === 0) {
         this.snowGeo.computeVertexNormals();
       }
     }

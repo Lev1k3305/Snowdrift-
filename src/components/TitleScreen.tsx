@@ -146,7 +146,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
 
         {/* Flat control-hint line (as required by game guidelines) */}
         <div className="mt-4 text-xs text-slate-400 font-mono tracking-wide">
-          WASD / Arrows Move · Space Nitro · T Time of Day · C Weather · H Horn · U Garage · Esc Pause
+          WASD / Arrows Move · Space Nitro · T Time of Day · C Weather · P Graphics Turbo · H Horn · U Garage · Esc Pause
         </div>
       </div>
 

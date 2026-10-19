@@ -47,6 +47,7 @@ export default function App() {
     timeOfDayClock: '08:00 AM',
     timeOfDayProgress: 0.04,
     isAutoTimeOfDay: true,
+    performanceMode: 'turbo',
   });
 
   // Victory modal stats
@@ -126,6 +127,8 @@ export default function App() {
           }
           return prev;
         });
+      } else if (e.code === 'KeyP') {
+        engine.cyclePerformanceMode();
       } else if ((e.code === 'Space' || e.code === 'Enter') && engine.getScreenState() === 'title') {
         handleStartGame(selectedLevelIndex);
       }
@@ -227,6 +230,10 @@ export default function App() {
     engineRef.current?.cycleTimeOfDay();
   }, []);
 
+  const handleCyclePerformance = useCallback(() => {
+    engineRef.current?.cyclePerformanceMode();
+  }, []);
+
   const currentLevel = LEVELS[selectedLevelIndex] || LEVELS[0];
 
   return (
@@ -282,6 +289,7 @@ export default function App() {
             onHonk={handleHonk}
             onCycleWeather={handleCycleWeather}
             onCycleTimeOfDay={handleCycleTimeOfDay}
+            onCyclePerformance={handleCyclePerformance}
           />
 
           {/* On-Screen Touch Joystick for touch/mobile devices */}

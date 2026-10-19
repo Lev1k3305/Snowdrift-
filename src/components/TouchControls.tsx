@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Zap } from 'lucide-react';
 
 interface TouchControlsProps {
@@ -16,6 +16,22 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const touchIdRef = useRef<number | null>(null);
+  const wasAtMaxRadiusRef = useRef<boolean>(false);
+
+  // Vibration API (Haptic Feedback) Helper
+  const triggerHaptic = useCallback((pattern: number | number[]) => {
+    try {
+      if (
+        typeof window !== 'undefined' &&
+        'navigator' in window &&
+        typeof navigator.vibrate === 'function'
+      ) {
+        navigator.vibrate(pattern);
+      }
+    } catch {
+      // Gracefully ignore devices/browsers where vibration is disabled or restricted
+    }
+  }, []);
 
   const [isTouchCapable, setIsTouchCapable] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -46,7 +62,12 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);
     touchIdRef.current = e.pointerId;
+    wasAtMaxRadiusRef.current = false;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    // Haptic feedback on joystick touch activation
+    triggerHaptic(18);
+
     handlePointerMove(e);
   };
 
@@ -66,9 +87,17 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     let clampedX = dx;
     let clampedY = dy;
 
-    if (dist > maxRadius) {
+    if (dist >= maxRadius) {
       clampedX = (dx / dist) * maxRadius;
       clampedY = (dy / dist) * maxRadius;
+
+      // Haptic tick when joystick hits outer boundary (deflection limit)
+      if (!wasAtMaxRadiusRef.current) {
+        triggerHaptic(10);
+        wasAtMaxRadiusRef.current = true;
+      }
+    } else if (dist < maxRadius * 0.85) {
+      wasAtMaxRadiusRef.current = false;
     }
 
     setKnobPos({ x: clampedX, y: clampedY });
@@ -79,8 +108,29 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
     if (touchIdRef.current !== null && e.pointerId !== touchIdRef.current) return;
     setIsDragging(false);
     touchIdRef.current = null;
+    wasAtMaxRadiusRef.current = false;
     setKnobPos({ x: 0, y: 0 });
     onJoystickMove(0, 0);
+
+    // Subtle release tap
+    triggerHaptic(8);
+  };
+
+  const handleHonkClick = () => {
+    // Energetic double-burst haptic vibration matching the trumpet/horn rhythm
+    triggerHaptic([40, 30, 50]);
+    onHonk();
+  };
+
+  const handleBoostDown = () => {
+    // Punchy ignition haptic on nitro activation
+    triggerHaptic([25, 20, 30]);
+    onBoostChange(true);
+  };
+
+  const handleBoostUp = () => {
+    triggerHaptic(10);
+    onBoostChange(false);
   };
 
   if (!isTouchCapable) return null;
@@ -114,18 +164,18 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
       <div className="flex flex-col gap-3.5 pointer-events-auto items-end">
         {/* Nitro Boost Button (Hold) */}
         <button
-          onPointerDown={() => onBoostChange(true)}
-          onPointerUp={() => onBoostChange(false)}
-          onPointerCancel={() => onBoostChange(false)}
+          onPointerDown={handleBoostDown}
+          onPointerUp={handleBoostUp}
+          onPointerCancel={handleBoostUp}
           className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-amber-600 to-orange-400 text-slate-950 font-black flex flex-col items-center justify-center shadow-2xl border-2 border-amber-300 active:scale-90 transition select-none touch-none cursor-pointer"
         >
           <Zap className="w-6 h-6 fill-slate-950" />
           <span className="text-[10px] uppercase font-bold tracking-tight">Nitro</span>
         </button>
 
-        {/* Horn Button */}
+        {/* Horn Button with Haptic Double-Pulse */}
         <button
-          onClick={onHonk}
+          onClick={handleHonkClick}
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-800/90 text-cyan-300 border border-slate-600 flex items-center justify-center text-lg active:scale-90 transition select-none shadow-lg cursor-pointer"
         >
           🎺

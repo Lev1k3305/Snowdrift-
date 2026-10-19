@@ -32,6 +32,7 @@ export class ParticleSystem {
   private snowPositions: Float32Array;
   private snowVelocities: Float32Array;
   private snowCount: number = 1800;
+  private activeSnowCount: number = 1800;
   private snowBounds = { x: 70, y: 35, z: 70 };
 
   // Weather parameters
@@ -46,11 +47,15 @@ export class ParticleSystem {
   private dynamicParticles: Particle[] = [];
   private dynamicMesh: THREE.InstancedMesh;
   private maxDynamicParticles: number = 600;
+  private maxDynamicLimit: number = 600;
 
   // Lingering snow plow trail particles
   private trailParticles: TrailParticle[] = [];
   private trailMesh: THREE.InstancedMesh;
   private maxTrailParticles: number = 800;
+  private maxTrailLimit: number = 800;
+
+  private quality: 'low' | 'medium' | 'high' = 'high';
 
   private dummy: THREE.Object3D = new THREE.Object3D();
   private colorDummy: THREE.Color = new THREE.Color();
@@ -380,7 +385,36 @@ export class ParticleSystem {
   }
 
   /**
-   * Update all particle systems
+   * Adaptive performance quality mode for low-end / older phones
+   */
+  public setQuality(quality: 'low' | 'medium' | 'high') {
+    this.quality = quality;
+    if (quality === 'low') {
+      this.activeSnowCount = 450;
+      this.maxDynamicLimit = 120;
+      this.maxTrailLimit = 150;
+    } else if (quality === 'medium') {
+      this.activeSnowCount = 900;
+      this.maxDynamicLimit = 280;
+      this.maxTrailLimit = 380;
+    } else {
+      this.activeSnowCount = 1800;
+      this.maxDynamicLimit = 600;
+      this.maxTrailLimit = 800;
+    }
+    this.snowGeo.setDrawRange(0, this.activeSnowCount);
+
+    // Trim excess dynamic particles immediately if switching down
+    if (this.dynamicParticles.length > this.maxDynamicLimit) {
+      this.dynamicParticles.length = this.maxDynamicLimit;
+    }
+    if (this.trailParticles.length > this.maxTrailLimit) {
+      this.trailParticles.length = this.maxTrailLimit;
+    }
+  }
+
+  /**
+   * Update all particle systems with instanced count optimization
    */
   public update(delta: number, centerTarget: THREE.Vector3) {
     const dt = Math.min(delta, 0.05);
@@ -396,7 +430,8 @@ export class ParticleSystem {
     const halfZ = this.snowBounds.z;
     const maxY = this.snowBounds.y;
 
-    for (let i = 0; i < this.snowCount; i++) {
+    const countToUpdate = this.activeSnowCount;
+    for (let i = 0; i < countToUpdate; i++) {
       const idx = i * 3;
 
       // Gradually steer particle velocities towards current weather wind targets
@@ -436,33 +471,30 @@ export class ParticleSystem {
       p.vel.multiplyScalar(0.96); // drag
     }
 
-    // Update instanced mesh
-    const activeCount = this.dynamicParticles.length;
-    for (let i = 0; i < this.maxDynamicParticles; i++) {
-      if (i < activeCount) {
-        const p = this.dynamicParticles[i];
-        const progress = p.life / p.maxLife;
-        const currentScale = p.size * (1 - progress * 0.4);
+    // Update instanced mesh with dynamic draw count (only render active particles)
+    const renderDynamicCount = Math.min(this.dynamicParticles.length, this.maxDynamicLimit);
+    this.dynamicMesh.count = renderDynamicCount;
 
-        this.dummy.position.copy(p.pos);
-        this.dummy.scale.set(currentScale, currentScale, currentScale);
-        this.dummy.rotation.x += dt * 3;
-        this.dummy.rotation.y += dt * 2;
-        this.dummy.updateMatrix();
-        this.dynamicMesh.setMatrixAt(i, this.dummy.matrix);
+    for (let i = 0; i < renderDynamicCount; i++) {
+      const p = this.dynamicParticles[i];
+      const progress = p.life / p.maxLife;
+      const currentScale = p.size * (1 - progress * 0.4);
 
-        this.colorDummy.copy(p.color).multiplyScalar(1 - progress * 0.3);
-        this.dynamicMesh.setColorAt(i, this.colorDummy);
-      } else {
-        this.dummy.position.set(0, -999, 0);
-        this.dummy.scale.set(0, 0, 0);
-        this.dummy.updateMatrix();
-        this.dynamicMesh.setMatrixAt(i, this.dummy.matrix);
-      }
+      this.dummy.position.copy(p.pos);
+      this.dummy.scale.set(currentScale, currentScale, currentScale);
+      this.dummy.rotation.x += dt * 3;
+      this.dummy.rotation.y += dt * 2;
+      this.dummy.updateMatrix();
+      this.dynamicMesh.setMatrixAt(i, this.dummy.matrix);
+
+      this.colorDummy.copy(p.color).multiplyScalar(1 - progress * 0.3);
+      this.dynamicMesh.setColorAt(i, this.colorDummy);
     }
 
-    this.dynamicMesh.instanceMatrix.needsUpdate = true;
-    if (this.dynamicMesh.instanceColor) this.dynamicMesh.instanceColor.needsUpdate = true;
+    if (renderDynamicCount > 0 || this.dynamicParticles.length === 0) {
+      this.dynamicMesh.instanceMatrix.needsUpdate = true;
+      if (this.dynamicMesh.instanceColor) this.dynamicMesh.instanceColor.needsUpdate = true;
+    }
 
     // 3. Update lingering snow plow trail particles
     for (let i = this.trailParticles.length - 1; i >= 0; i--) {
@@ -479,35 +511,32 @@ export class ParticleSystem {
       tp.rotation += tp.rotSpeed * dt;
     }
 
-    const activeTrailCount = this.trailParticles.length;
-    for (let i = 0; i < this.maxTrailParticles; i++) {
-      if (i < activeTrailCount) {
-        const tp = this.trailParticles[i];
-        const progress = tp.life / tp.maxLife; // 0 to 1
+    const renderTrailCount = Math.min(this.trailParticles.length, this.maxTrailLimit);
+    this.trailMesh.count = renderTrailCount;
 
-        // Expands as it dissipates softly
-        const currentScale = tp.initialSize + (tp.maxSize - tp.initialSize) * Math.sin(progress * Math.PI * 0.5);
+    for (let i = 0; i < renderTrailCount; i++) {
+      const tp = this.trailParticles[i];
+      const progress = tp.life / tp.maxLife; // 0 to 1
 
-        this.dummy.position.copy(tp.pos);
-        // Flatter disk-like snow mist hugging the ground
-        this.dummy.scale.set(currentScale, currentScale * 0.45, currentScale);
-        this.dummy.rotation.y = tp.rotation;
-        this.dummy.updateMatrix();
-        this.trailMesh.setMatrixAt(i, this.dummy.matrix);
+      // Expands as it dissipates softly
+      const currentScale = tp.initialSize + (tp.maxSize - tp.initialSize) * Math.sin(progress * Math.PI * 0.5);
 
-        // Smooth fadeout as it lingers
-        const fadeAlpha = Math.max(0, 1 - progress);
-        this.colorDummy.copy(tp.color).multiplyScalar(fadeAlpha * 0.85);
-        this.trailMesh.setColorAt(i, this.colorDummy);
-      } else {
-        this.dummy.position.set(0, -999, 0);
-        this.dummy.scale.set(0, 0, 0);
-        this.dummy.updateMatrix();
-        this.trailMesh.setMatrixAt(i, this.dummy.matrix);
-      }
+      this.dummy.position.copy(tp.pos);
+      this.dummy.scale.set(currentScale, currentScale * 0.45, currentScale);
+      this.dummy.rotation.y = tp.rotation;
+      this.dummy.updateMatrix();
+      this.trailMesh.setMatrixAt(i, this.dummy.matrix);
+
+      // Smooth fadeout as it lingers
+      const fadeAlpha = Math.max(0, 1 - progress);
+      this.colorDummy.copy(tp.color).multiplyScalar(fadeAlpha * 0.85);
+      this.trailMesh.setColorAt(i, this.colorDummy);
     }
-    this.trailMesh.instanceMatrix.needsUpdate = true;
-    if (this.trailMesh.instanceColor) this.trailMesh.instanceColor.needsUpdate = true;
+
+    if (renderTrailCount > 0 || this.trailParticles.length === 0) {
+      this.trailMesh.instanceMatrix.needsUpdate = true;
+      if (this.trailMesh.instanceColor) this.trailMesh.instanceColor.needsUpdate = true;
+    }
   }
 
   public dispose() {

@@ -98,12 +98,16 @@ export const Minimap: React.FC<MinimapProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Main rendering loop
+  // Main rendering loop (throttled to 22-25 FPS to save mobile CPU/battery)
   useEffect(() => {
     let animId: number;
+    let lastRenderTime = 0;
 
-    const renderMinimap = () => {
+    const renderMinimap = (time: number = performance.now()) => {
       animId = requestAnimationFrame(renderMinimap);
+      if (time - lastRenderTime < 42) return; // ~24 FPS radar refresh
+      lastRenderTime = time;
+
       if (!canvasRef.current || !engine) return;
 
       const canvas = canvasRef.current;
@@ -320,11 +324,11 @@ export const Minimap: React.FC<MinimapProps> = ({
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // 5. Real-Time Cleared Snow Visualization
-      // Shows where the player has plowed roads in real time
+      // 5. Real-Time Cleared Snow Visualization (High-performance fast fillRect blitting)
+      // Shows where the player has plowed roads in real time without GC churn
       if (data.snowData && data.snowData.snowDepthGrid) {
         const { snowDepthGrid, gridResolution } = data.snowData;
-        const step = isExpanded ? 3 : 4;
+        const step = isExpanded ? 4 : 5;
 
         for (let gy = 0; gy < gridResolution; gy += step) {
           for (let gx = 0; gx < gridResolution; gx += step) {
@@ -338,12 +342,10 @@ export const Minimap: React.FC<MinimapProps> = ({
               const pt = worldToIso(wx, wz);
 
               const clearedRatio = (255 - depth) / 255;
-              const dotSize = (isExpanded ? 2.2 : 1.7) * (0.8 + clearedRatio * 0.4);
+              const dotSize = (isExpanded ? 3.0 : 2.2) * (0.8 + clearedRatio * 0.4);
 
-              ctx.fillStyle = `rgba(56, 189, 248, ${0.25 + clearedRatio * 0.6})`;
-              ctx.beginPath();
-              ctx.arc(pt.x, pt.y, dotSize, 0, Math.PI * 2);
-              ctx.fill();
+              ctx.fillStyle = `rgba(56, 189, 248, ${0.3 + clearedRatio * 0.55})`;
+              ctx.fillRect(pt.x - dotSize * 0.5, pt.y - dotSize * 0.5, dotSize, dotSize);
             }
           }
         }
