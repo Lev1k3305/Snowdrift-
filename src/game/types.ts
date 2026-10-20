@@ -95,3 +95,46 @@ export interface GameStats {
   fps?: number;
   truckPos?: { x: number; z: number; heading: number };
 }
+
+export interface ContractPenalty {
+  failureFeeCoins: number;
+  reputationLoss: number;
+  minPercentRequired: number;
+}
+
+export interface Contract {
+  id: string;
+  title: string;
+  clientName: string;
+  description: string;
+  locationId: string; // references LevelConfig.id (e.g. 'pinecone-lane')
+  targetPercent: number; // e.g. 80 for 80% clearing required
+  rewardCoins: number;
+  rewardReputation: number;
+  penalty: ContractPenalty;
+  weather?: WeatherType;
+  timeOfDay?: TimeOfDay;
+  minReputationRequired?: number;
+}
+
+export interface DistrictConfig {
+  id: string;
+  name: string;
+  description: string;
+  locationId: string; // references LevelConfig.id
+  requiredReputation: number;
+  unlockedContracts: string[]; // contract IDs belonging to this district
+}
+
+export interface CompanyProgress {
+  version: number;
+  companyName: string;
+  coins: number;
+  reputation: number;
+  completedContractIds: string[];
+  activeContractId: string | null;
+  upgrades: Record<string, number>;
+  selectedColorHex: string;
+  selectedBladeHex: string;
+  lastUpdated: number;
+}
