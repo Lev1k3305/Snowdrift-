@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine } from './game/gameEngine.ts';
 import { LEVELS, TRUCK_COLORS } from './game/constants.ts';
-import { CompanyProgress, FloatingText, GameStats, ScreenState, TruckColorOption } from './game/types.ts';
+import { CompanyProgress, Contract, FloatingText, GameStats, ScreenState, TruckColorOption } from './game/types.ts';
 import { loadCompanyProgress, saveCompanyProgress } from './game/companyStorage.ts';
 import { CONTRACTS } from './game/contracts.ts';
 import { TitleScreen } from './components/TitleScreen.tsx';
@@ -10,6 +10,8 @@ import { UpgradeShop } from './components/UpgradeShop.tsx';
 import { VictoryModal } from './components/VictoryModal.tsx';
 import { PauseModal } from './components/PauseModal.tsx';
 import { TouchControls } from './components/TouchControls.tsx';
+import { CareerHub } from './components/CareerHub.tsx';
+import { ContractSelectionModal } from './components/ContractSelectionModal.tsx';
 import { synthAudio } from './audio/synthAudio.ts';
 
 export default function App() {
@@ -20,6 +22,7 @@ export default function App() {
   const [companyProgress, setCompanyProgress] = useState<CompanyProgress>(() => loadCompanyProgress());
 
   const [screenState, setScreenState] = useState<ScreenState>('title');
+  const [garageReturnScreen, setGarageReturnScreen] = useState<ScreenState>('title');
   const [selectedLevelIndex, setSelectedLevelIndex] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [selectedColorHex, setSelectedColorHex] = useState<string>(companyProgress.selectedColorHex);
@@ -229,15 +232,20 @@ export default function App() {
 
   const handleOpenGarage = useCallback(() => {
     persistCoins();
+    setGarageReturnScreen((prevScreen) => (screenState !== 'garage' ? screenState : prevScreen));
     engineRef.current?.setScreenState('garage');
     setScreenState('garage');
-  }, [persistCoins]);
+  }, [persistCoins, screenState]);
 
   const handleCloseGarage = useCallback(() => {
     persistCoins();
+    if (garageReturnScreen === 'career' || garageReturnScreen === 'contracts') {
+      setScreenState(garageReturnScreen);
+      return;
+    }
     engineRef.current?.setScreenState('playing');
     setScreenState('playing');
-  }, [persistCoins]);
+  }, [persistCoins, garageReturnScreen]);
 
   const handlePurchaseUpgrade = useCallback((upgradeId: string) => {
     if (!engineRef.current) return false;
@@ -285,6 +293,38 @@ export default function App() {
     }
     setScreenState('playing');
   }, [selectedLevelIndex]);
+
+  const handleAcceptContract = useCallback(
+    (contract: Contract) => {
+      // Find matching level by locationId
+      const targetLvlIdx = LEVELS.findIndex((l) => l.id === contract.locationId);
+      const lvlIndexToLoad = targetLvlIdx !== -1 ? targetLvlIdx : 0;
+
+      // Persist active contract ID in company progress
+      setCompanyProgress((prev) => {
+        const updated: CompanyProgress = {
+          ...prev,
+          activeContractId: contract.id,
+        };
+        saveCompanyProgress(updated);
+        return updated;
+      });
+
+      setSelectedLevelIndex(lvlIndexToLoad);
+      if (engineRef.current) {
+        engineRef.current.loadLevel(lvlIndexToLoad);
+        if (contract.weather) {
+          engineRef.current.cycleWeather(contract.weather);
+        }
+        if (contract.timeOfDay) {
+          engineRef.current.setTimeOfDay(contract.timeOfDay);
+        }
+        engineRef.current.setScreenState('playing');
+      }
+      setScreenState('playing');
+    },
+    []
+  );
 
   const handleHonk = useCallback(() => {
     engineRef.current?.triggerHorn();
@@ -340,6 +380,27 @@ export default function App() {
           onStart={handleStartGame}
           isMuted={isMuted}
           onToggleMute={handleToggleMute}
+          onOpenCareerHub={() => setScreenState('career')}
+        />
+      )}
+
+      {/* Screen: Career Hub */}
+      {screenState === 'career' && (
+        <CareerHub
+          companyProgress={companyProgress}
+          onOpenContracts={() => setScreenState('contracts')}
+          onOpenGarage={handleOpenGarage}
+          onOpenArcade={() => handleStartGame(selectedLevelIndex)}
+          onBack={() => setScreenState('title')}
+        />
+      )}
+
+      {/* Screen: Contract Selection Screen */}
+      {screenState === 'contracts' && (
+        <ContractSelectionModal
+          companyProgress={companyProgress}
+          onAcceptContract={handleAcceptContract}
+          onBack={() => setScreenState('career')}
         />
       )}
 

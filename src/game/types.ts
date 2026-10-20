@@ -2,7 +2,7 @@
  * Type definitions for Snowdrift 3D Snow-Plowing Game
  */
 
-export type ScreenState = 'title' | 'playing' | 'paused' | 'victory' | 'garage';
+export type ScreenState = 'title' | 'playing' | 'paused' | 'victory' | 'garage' | 'career' | 'contracts';
 
 export type TimeOfDay = 'morning' | 'midday' | 'sunset' | 'night';
 

@@ -10,6 +10,7 @@ interface TitleScreenProps {
   onSelectLevel: (index: number) => void;
   isMuted: boolean;
   onToggleMute: () => void;
+  onOpenCareerHub: () => void;
 }
 
 export const TitleScreen: React.FC<TitleScreenProps> = ({
@@ -18,6 +19,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
   onSelectLevel,
   isMuted,
   onToggleMute,
+  onOpenCareerHub,
 }) => {
   const [showInstallModal, setShowInstallModal] = useState(false);
 
@@ -132,17 +134,27 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
           Hop into your heavy-duty winter truck, carve pristine trails through deep powdery snowbanks, and keep the alpine village humming!
         </p>
 
-        {/* Primary Start CTA Button */}
-        <button
-          onClick={() => onStart(selectedLevelIndex)}
-          className="pointer-events-auto group relative flex items-center gap-3 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-lg px-8 py-4 rounded-3xl shadow-[0_0_35px_rgba(56,189,248,0.4)] transition-all duration-200 transform hover:scale-105 active:scale-98 cursor-pointer"
-        >
-          <Play className="w-6 h-6 fill-slate-950" />
-          <span>START PLOWING</span>
-          <kbd className="bg-slate-950/20 text-slate-950 px-2 py-0.5 rounded-lg text-xs font-mono font-bold">
-            SPACE
-          </kbd>
-        </button>
+        {/* CTAs: Career Mode & Quick Arcade Start */}
+        <div className="flex flex-col sm:flex-row items-center gap-3.5 pointer-events-auto">
+          <button
+            onClick={onOpenCareerHub}
+            className="group relative flex items-center gap-3 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-base sm:text-lg px-7 py-3.5 sm:py-4 rounded-3xl shadow-[0_0_35px_rgba(56,189,248,0.4)] transition-all duration-200 transform hover:scale-105 active:scale-98 cursor-pointer"
+          >
+            <Trophy className="w-5 h-5 sm:w-6 sm:h-6 fill-slate-950" />
+            <span>CAREER MODE</span>
+          </button>
+
+          <button
+            onClick={() => onStart(selectedLevelIndex)}
+            className="group relative flex items-center gap-2.5 bg-slate-900/90 hover:bg-slate-800 text-slate-100 font-bold text-sm sm:text-base px-6 py-3.5 sm:py-4 rounded-3xl border border-slate-700/80 transition-all duration-200 transform hover:scale-105 active:scale-98 cursor-pointer shadow-lg"
+          >
+            <Play className="w-5 h-5 fill-slate-100" />
+            <span>ARCADE FREE ROAM</span>
+            <kbd className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border border-slate-700 hidden sm:inline-block">
+              SPACE
+            </kbd>
+          </button>
+        </div>
 
         {/* Flat control-hint line (as required by game guidelines) */}
         <div className="mt-4 text-xs text-slate-400 font-mono tracking-wide">
