@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine } from './game/gameEngine.ts';
 import { LEVELS, TRUCK_COLORS } from './game/constants.ts';
-import { CompanyProgress, Contract, FloatingText, GameStats, ScreenState, TruckColorOption } from './game/types.ts';
+import { CompanyProgress, Contract, ContractResult, FloatingText, GameStats, ScreenState, TruckColorOption } from './game/types.ts';
 import { loadCompanyProgress, saveCompanyProgress } from './game/companyStorage.ts';
-import { CONTRACTS } from './game/contracts.ts';
+import { CONTRACTS, evaluateContractResult } from './game/contracts.ts';
 import { TitleScreen } from './components/TitleScreen.tsx';
 import { GameHUD } from './components/GameHUD.tsx';
 import { UpgradeShop } from './components/UpgradeShop.tsx';
@@ -12,6 +12,7 @@ import { PauseModal } from './components/PauseModal.tsx';
 import { TouchControls } from './components/TouchControls.tsx';
 import { CareerHub } from './components/CareerHub.tsx';
 import { ContractSelectionModal } from './components/ContractSelectionModal.tsx';
+import { ContractResultModal } from './components/ContractResultModal.tsx';
 import { synthAudio } from './audio/synthAudio.ts';
 
 export default function App() {
@@ -57,6 +58,24 @@ export default function App() {
     performanceMode: 'turbo',
   });
 
+  // Career Active Contract & Results State
+  const [activeContract, setActiveContract] = useState<Contract | null>(() => {
+    if (companyProgress.activeContractId) {
+      return CONTRACTS.find((c) => c.id === companyProgress.activeContractId) || null;
+    }
+    return null;
+  });
+  const [contractResult, setContractResult] = useState<ContractResult | null>(null);
+
+  // Single evaluation payout guard refs for async engine callbacks
+  const activeContractRef = useRef<Contract | null>(activeContract);
+  useEffect(() => {
+    activeContractRef.current = activeContract;
+  }, [activeContract]);
+
+  const hasEvaluatedContractRef = useRef<boolean>(false);
+  const startingCoinsRef = useRef<number>(companyProgress.coins);
+
   // Victory modal stats
   const [victoryStats, setVictoryStats] = useState<{
     percent: number;
@@ -79,32 +98,57 @@ export default function App() {
       },
       onVictory: (vStats) => {
         setVictoryStats(vStats);
-        setScreenState('victory');
 
-        // Persist company progress & completed contracts on route victory
-        setCompanyProgress((prev) => {
-          const currentLvl = LEVELS[selectedLevelIndexRef.current] || LEVELS[0];
-          const matchingContracts = CONTRACTS.filter(
-            (c) => c.locationId === currentLvl.id && vStats.percent >= c.targetPercent
-          );
-          const newCompleted = [...prev.completedContractIds];
-          let bonusRep = 0;
-          matchingContracts.forEach((c) => {
-            if (!newCompleted.includes(c.id)) {
-              newCompleted.push(c.id);
-              bonusRep += c.rewardReputation;
-            }
+        const curActiveContract = activeContractRef.current;
+
+        if (curActiveContract) {
+          if (hasEvaluatedContractRef.current) {
+            setScreenState('contract_results');
+            return;
+          }
+          hasEvaluatedContractRef.current = true;
+
+          setCompanyProgress((prev) => {
+            const { result, updatedProgress } = evaluateContractResult(
+              curActiveContract,
+              vStats.percent,
+              startingCoinsRef.current,
+              vStats.coins,
+              prev
+            );
+            setContractResult(result);
+            saveCompanyProgress(updatedProgress);
+            return updatedProgress;
           });
 
-          const updated: CompanyProgress = {
-            ...prev,
-            coins: vStats.coins,
-            reputation: prev.reputation + bonusRep,
-            completedContractIds: newCompleted,
-          };
-          saveCompanyProgress(updated);
-          return updated;
-        });
+          setScreenState('contract_results');
+        } else {
+          // Arcade Mode Victory
+          setScreenState('victory');
+          setCompanyProgress((prev) => {
+            const currentLvl = LEVELS[selectedLevelIndexRef.current] || LEVELS[0];
+            const matchingContracts = CONTRACTS.filter(
+              (c) => c.locationId === currentLvl.id && vStats.percent >= c.targetPercent
+            );
+            const newCompleted = [...prev.completedContractIds];
+            let bonusRep = 0;
+            matchingContracts.forEach((c) => {
+              if (!newCompleted.includes(c.id)) {
+                newCompleted.push(c.id);
+                bonusRep += c.rewardReputation;
+              }
+            });
+
+            const updated: CompanyProgress = {
+              ...prev,
+              coins: vStats.coins,
+              reputation: prev.reputation + bonusRep,
+              completedContractIds: newCompleted,
+            };
+            saveCompanyProgress(updated);
+            return updated;
+          });
+        }
       },
       onFloatingTextUpdate: (rawTexts: FloatingText[]) => {
         if (!engineRef.current) return;
@@ -178,6 +222,11 @@ export default function App() {
 
   const handleStartGame = useCallback(
     (lvlIndex: number) => {
+      setActiveContract(null);
+      startingCoinsRef.current = companyProgress.coins;
+      hasEvaluatedContractRef.current = false;
+      setContractResult(null);
+
       setSelectedLevelIndex(lvlIndex);
       if (engineRef.current) {
         engineRef.current.loadLevel(lvlIndex);
@@ -185,7 +234,7 @@ export default function App() {
       }
       setScreenState('playing');
     },
-    []
+    [companyProgress.coins]
   );
 
   const handleToggleMute = useCallback(() => {
@@ -300,6 +349,11 @@ export default function App() {
       const targetLvlIdx = LEVELS.findIndex((l) => l.id === contract.locationId);
       const lvlIndexToLoad = targetLvlIdx !== -1 ? targetLvlIdx : 0;
 
+      setActiveContract(contract);
+      startingCoinsRef.current = companyProgress.coins;
+      hasEvaluatedContractRef.current = false;
+      setContractResult(null);
+
       // Persist active contract ID in company progress
       setCompanyProgress((prev) => {
         const updated: CompanyProgress = {
@@ -323,8 +377,38 @@ export default function App() {
       }
       setScreenState('playing');
     },
-    []
+    [companyProgress.coins]
   );
+
+  const handleRetryContract = useCallback(() => {
+    if (!activeContract) return;
+
+    startingCoinsRef.current = companyProgress.coins;
+    hasEvaluatedContractRef.current = false;
+    setContractResult(null);
+
+    const targetLvlIdx = LEVELS.findIndex((l) => l.id === activeContract.locationId);
+    const lvlIndexToLoad = targetLvlIdx !== -1 ? targetLvlIdx : 0;
+
+    setSelectedLevelIndex(lvlIndexToLoad);
+    if (engineRef.current) {
+      engineRef.current.loadLevel(lvlIndexToLoad);
+      if (activeContract.weather) {
+        engineRef.current.cycleWeather(activeContract.weather);
+      }
+      if (activeContract.timeOfDay) {
+        engineRef.current.setTimeOfDay(activeContract.timeOfDay);
+      }
+      engineRef.current.setScreenState('playing');
+    }
+    setScreenState('playing');
+  }, [activeContract, companyProgress.coins]);
+
+  const handleReturnToHub = useCallback(() => {
+    setActiveContract(null);
+    setContractResult(null);
+    setScreenState('career');
+  }, []);
 
   const handleHonk = useCallback(() => {
     engineRef.current?.triggerHorn();
@@ -462,6 +546,16 @@ export default function App() {
           stats={victoryStats}
           onNextLevel={handleNextLevel}
           onReplay={handleRestart}
+          onOpenGarage={handleOpenGarage}
+        />
+      )}
+
+      {/* Screen: Contract Results & Financial Report Modal */}
+      {screenState === 'contract_results' && contractResult && (
+        <ContractResultModal
+          result={contractResult}
+          onReturnToHub={handleReturnToHub}
+          onRetry={handleRetryContract}
           onOpenGarage={handleOpenGarage}
         />
       )}

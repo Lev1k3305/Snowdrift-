@@ -1,4 +1,4 @@
-import { Contract, DistrictConfig } from './types.ts';
+import { CompanyProgress, Contract, ContractResult, DistrictConfig } from './types.ts';
 
 export const DISTRICTS: DistrictConfig[] = [
   {
@@ -137,3 +137,60 @@ export const CONTRACTS: Contract[] = [
     minReputationRequired: 350,
   },
 ];
+
+/**
+ * Evaluates contract results against actual game outcome and current company progress.
+ * Guarantees zero negative balance and deterministic single-payout results.
+ */
+export function evaluateContractResult(
+  contract: Contract,
+  finalPercent: number,
+  startingCoins: number,
+  endingCoins: number,
+  currentCompanyProgress: CompanyProgress
+): { result: ContractResult; updatedProgress: CompanyProgress } {
+  const success = finalPercent >= contract.targetPercent;
+  const gameplayCoins = Math.max(0, endingCoins - startingCoins);
+
+  const baseRewardCoins = success ? contract.rewardCoins : 0;
+  const rewardReputation = success ? contract.rewardReputation : 0;
+  const penaltyCoins = success ? 0 : contract.penalty.failureFeeCoins;
+  const penaltyReputation = success ? 0 : contract.penalty.reputationLoss;
+
+  const netCoinsGained = baseRewardCoins + gameplayCoins - penaltyCoins;
+  const netReputationGained = rewardReputation - penaltyReputation;
+
+  const updatedCoins = Math.max(0, currentCompanyProgress.coins + netCoinsGained);
+  const updatedReputation = Math.max(0, currentCompanyProgress.reputation + netReputationGained);
+
+  const newCompleted = [...currentCompanyProgress.completedContractIds];
+  if (success && !newCompleted.includes(contract.id)) {
+    newCompleted.push(contract.id);
+  }
+
+  const result: ContractResult = {
+    contract,
+    success,
+    finalPercent,
+    targetPercent: contract.targetPercent,
+    baseRewardCoins,
+    rewardReputation,
+    gameplayCoins,
+    penaltyCoins,
+    penaltyReputation,
+    netCoinsGained,
+    netReputationGained,
+    updatedCoins,
+    updatedReputation,
+  };
+
+  const updatedProgress: CompanyProgress = {
+    ...currentCompanyProgress,
+    coins: updatedCoins,
+    reputation: updatedReputation,
+    completedContractIds: newCompleted,
+    activeContractId: null,
+  };
+
+  return { result, updatedProgress };
+}
