@@ -6,7 +6,7 @@ import {
   SAVE_KEY,
   CURRENT_SAVE_VERSION,
 } from './companyStorage.ts';
-import { CONTRACTS, DISTRICTS } from './contracts.ts';
+import { CONTRACTS, DISTRICTS, evaluateContractResult } from './contracts.ts';
 import { LEVELS } from './constants.ts';
 
 // Mock localStorage for CLI test environment if undefined
@@ -128,5 +128,116 @@ describe('CompanyStorage & Contracts Catalog', () => {
     // With sufficient reputation:
     const highRepProgress = { ...DEFAULT_COMPANY_PROGRESS, reputation: 300 };
     expect((highRepContract!.minReputationRequired ?? 0) <= highRepProgress.reputation).toBe(true);
+  });
+
+  test('evaluateContractResult pays contract reward and reputation for successful completion', () => {
+    const contract = CONTRACTS[0]; // targetPercent: 80, rewardCoins: 120, rewardReputation: 25
+    const initialProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 100,
+      reputation: 10,
+      completedContractIds: [],
+    };
+
+    // Plowing cleared 85% (> 80%), collected 30 gameplay coins (ending 130)
+    const { result, updatedProgress } = evaluateContractResult(
+      contract,
+      85,
+      100,
+      130,
+      initialProgress
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.baseRewardCoins).toBe(contract.rewardCoins);
+    expect(result.rewardReputation).toBe(contract.rewardReputation);
+    expect(result.penaltyCoins).toBe(0);
+    expect(result.penaltyReputation).toBe(0);
+    expect(result.gameplayCoins).toBe(30);
+    expect(result.netCoinsGained).toBe(120 + 30);
+    expect(result.updatedCoins).toBe(100 + 120 + 30);
+    expect(result.updatedReputation).toBe(10 + 25);
+    expect(updatedProgress.completedContractIds).toContain(contract.id);
+    expect(updatedProgress.activeContractId).toBeNull();
+  });
+
+  test('evaluateContractResult applies failure penalty and does not pay reward for failed completion', () => {
+    const contract = CONTRACTS[0]; // targetPercent: 80, penalty: failureFeeCoins: 30, reputationLoss: 10
+    const initialProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 100,
+      reputation: 20,
+      completedContractIds: [],
+    };
+
+    // Plowing cleared 40% (< 80%), collected 10 gameplay coins (ending 110)
+    const { result, updatedProgress } = evaluateContractResult(
+      contract,
+      40,
+      100,
+      110,
+      initialProgress
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.baseRewardCoins).toBe(0);
+    expect(result.rewardReputation).toBe(0);
+    expect(result.penaltyCoins).toBe(30);
+    expect(result.penaltyReputation).toBe(10);
+    expect(result.netCoinsGained).toBe(0 + 10 - 30); // -20
+    expect(result.updatedCoins).toBe(80);
+    expect(result.updatedReputation).toBe(10);
+    expect(updatedProgress.completedContractIds).not.toContain(contract.id);
+  });
+
+  test('evaluateContractResult safely clamps balance and reputation to non-negative minimum', () => {
+    const contract = CONTRACTS[5]; // penalty: failureFeeCoins: 200, reputationLoss: 50
+    const brokeProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 20,
+      reputation: 5,
+    };
+
+    const { result, updatedProgress } = evaluateContractResult(
+      contract,
+      10, // failed miserably
+      20,
+      20, // 0 gameplay coins
+      brokeProgress
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.updatedCoins).toBe(0); // Clamped at 0, not -180
+    expect(result.updatedReputation).toBe(0); // Clamped at 0, not -45
+    expect(updatedProgress.coins).toBe(0);
+    expect(updatedProgress.reputation).toBe(0);
+  });
+
+  test('evaluateContractResult preserves existing upgrades, colors, and completed contracts', () => {
+    const contract = CONTRACTS[1];
+    const customizedProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      companyName: 'Peak Plowing Inc.',
+      upgrades: { ...DEFAULT_COMPANY_PROGRESS.upgrades, bladeWidth: 3, saltSpreader: 2 },
+      selectedColorHex: '#123456',
+      selectedBladeHex: '#654321',
+      completedContractIds: ['contract-pinecone-morning'],
+    };
+
+    const { updatedProgress } = evaluateContractResult(
+      contract,
+      90,
+      100,
+      120,
+      customizedProgress
+    );
+
+    expect(updatedProgress.companyName).toBe('Peak Plowing Inc.');
+    expect(updatedProgress.upgrades.bladeWidth).toBe(3);
+    expect(updatedProgress.upgrades.saltSpreader).toBe(2);
+    expect(updatedProgress.selectedColorHex).toBe('#123456');
+    expect(updatedProgress.selectedBladeHex).toBe('#654321');
+    expect(updatedProgress.completedContractIds).toContain('contract-pinecone-morning');
+    expect(updatedProgress.completedContractIds).toContain('contract-pinecone-blizzard');
   });
 });

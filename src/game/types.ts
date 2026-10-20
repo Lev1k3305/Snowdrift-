@@ -2,7 +2,7 @@
  * Type definitions for Snowdrift 3D Snow-Plowing Game
  */
 
-export type ScreenState = 'title' | 'playing' | 'paused' | 'victory' | 'garage' | 'career' | 'contracts';
+export type ScreenState = 'title' | 'playing' | 'paused' | 'victory' | 'garage' | 'career' | 'contracts' | 'contract_results';
 
 export type TimeOfDay = 'morning' | 'midday' | 'sunset' | 'night';
 
@@ -115,6 +115,22 @@ export interface Contract {
   weather?: WeatherType;
   timeOfDay?: TimeOfDay;
   minReputationRequired?: number;
+}
+
+export interface ContractResult {
+  contract: Contract;
+  success: boolean;
+  finalPercent: number;
+  targetPercent: number;
+  baseRewardCoins: number;
+  rewardReputation: number;
+  gameplayCoins: number;
+  penaltyCoins: number;
+  penaltyReputation: number;
+  netCoinsGained: number;
+  netReputationGained: number;
+  updatedCoins: number;
+  updatedReputation: number;
 }
 
 export interface DistrictConfig {
