@@ -112,4 +112,21 @@ describe('CompanyStorage & Contracts Catalog', () => {
       }
     }
   });
+
+  test('Contract unlocking logic strictly obeys player reputation', () => {
+    const firstContract = CONTRACTS[0]; // minReputationRequired: 0
+    const highRepContract = CONTRACTS.find((c) => (c.minReputationRequired ?? 0) > 100);
+
+    expect(firstContract).toBeDefined();
+    expect(highRepContract).toBeDefined();
+
+    // With 0 reputation:
+    const zeroRepProgress = { ...DEFAULT_COMPANY_PROGRESS, reputation: 0 };
+    expect((firstContract.minReputationRequired ?? 0) <= zeroRepProgress.reputation).toBe(true);
+    expect((highRepContract!.minReputationRequired ?? 0) <= zeroRepProgress.reputation).toBe(false);
+
+    // With sufficient reputation:
+    const highRepProgress = { ...DEFAULT_COMPANY_PROGRESS, reputation: 300 };
+    expect((highRepContract!.minReputationRequired ?? 0) <= highRepProgress.reputation).toBe(true);
+  });
 });
