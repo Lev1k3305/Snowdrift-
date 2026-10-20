@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine } from './game/gameEngine.ts';
 import { LEVELS, TRUCK_COLORS } from './game/constants.ts';
-import { FloatingText, GameStats, ScreenState, TruckColorOption } from './game/types.ts';
+import { CompanyProgress, FloatingText, GameStats, ScreenState, TruckColorOption } from './game/types.ts';
+import { loadCompanyProgress, saveCompanyProgress } from './game/companyStorage.ts';
+import { CONTRACTS } from './game/contracts.ts';
 import { TitleScreen } from './components/TitleScreen.tsx';
 import { GameHUD } from './components/GameHUD.tsx';
 import { UpgradeShop } from './components/UpgradeShop.tsx';
@@ -14,25 +16,27 @@ export default function App() {
   const canvasMountRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
 
+  // Company progress state loaded safely from localStorage
+  const [companyProgress, setCompanyProgress] = useState<CompanyProgress>(() => loadCompanyProgress());
+
   const [screenState, setScreenState] = useState<ScreenState>('title');
   const [selectedLevelIndex, setSelectedLevelIndex] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [selectedColorHex, setSelectedColorHex] = useState<string>(TRUCK_COLORS[0].hex);
+  const [selectedColorHex, setSelectedColorHex] = useState<string>(companyProgress.selectedColorHex);
 
-  // Upgrades state in React for immediate UI sync
-  const [upgrades, setUpgrades] = useState<Record<string, number>>({
-    bladeWidth: 1,
-    enginePower: 1,
-    studdedTires: 1,
-    heatedBlade: 1,
-    saltSpreader: 1,
-    turboBoost: 1,
-  });
+  // Upgrades state in React initialized from loaded company progress
+  const [upgrades, setUpgrades] = useState<Record<string, number>>(companyProgress.upgrades);
+
+  // Selected level ref for async callback access
+  const selectedLevelIndexRef = useRef<number>(selectedLevelIndex);
+  useEffect(() => {
+    selectedLevelIndexRef.current = selectedLevelIndex;
+  }, [selectedLevelIndex]);
 
   // Game stats
   const [stats, setStats] = useState<GameStats>({
     score: 0,
-    coins: 100,
+    coins: companyProgress.coins,
     percentCleared: 0,
     currentCombo: 1.0,
     maxCombo: 1.0,
@@ -73,6 +77,31 @@ export default function App() {
       onVictory: (vStats) => {
         setVictoryStats(vStats);
         setScreenState('victory');
+
+        // Persist company progress & completed contracts on route victory
+        setCompanyProgress((prev) => {
+          const currentLvl = LEVELS[selectedLevelIndexRef.current] || LEVELS[0];
+          const matchingContracts = CONTRACTS.filter(
+            (c) => c.locationId === currentLvl.id && vStats.percent >= c.targetPercent
+          );
+          const newCompleted = [...prev.completedContractIds];
+          let bonusRep = 0;
+          matchingContracts.forEach((c) => {
+            if (!newCompleted.includes(c.id)) {
+              newCompleted.push(c.id);
+              bonusRep += c.rewardReputation;
+            }
+          });
+
+          const updated: CompanyProgress = {
+            ...prev,
+            coins: vStats.coins,
+            reputation: prev.reputation + bonusRep,
+            completedContractIds: newCompleted,
+          };
+          saveCompanyProgress(updated);
+          return updated;
+        });
       },
       onFloatingTextUpdate: (rawTexts: FloatingText[]) => {
         if (!engineRef.current) return;
@@ -101,6 +130,7 @@ export default function App() {
       },
     });
 
+    engine.initCompanyProgress(companyProgress);
     engineRef.current = engine;
 
     // Listen for global keyboard shortcuts (Esc for pause, U for garage, Space for title start)
@@ -160,10 +190,22 @@ export default function App() {
     setIsMuted(muted);
   }, []);
 
+  const persistCoins = useCallback(() => {
+    if (!engineRef.current) return;
+    const currentCoins = engineRef.current.getCoins();
+    setCompanyProgress((prev) => {
+      if (prev.coins === currentCoins) return prev;
+      const updated = { ...prev, coins: currentCoins };
+      saveCompanyProgress(updated);
+      return updated;
+    });
+  }, []);
+
   const handlePause = useCallback(() => {
+    persistCoins();
     engineRef.current?.setScreenState('paused');
     setScreenState('paused');
-  }, []);
+  }, [persistCoins]);
 
   const handleResume = useCallback(() => {
     engineRef.current?.setScreenState('playing');
@@ -171,41 +213,67 @@ export default function App() {
   }, []);
 
   const handleRestart = useCallback(() => {
+    persistCoins();
     if (engineRef.current) {
       engineRef.current.loadLevel(selectedLevelIndex);
       engineRef.current.setScreenState('playing');
     }
     setScreenState('playing');
-  }, [selectedLevelIndex]);
+  }, [selectedLevelIndex, persistCoins]);
 
   const handleHome = useCallback(() => {
+    persistCoins();
     engineRef.current?.setScreenState('title');
     setScreenState('title');
-  }, []);
+  }, [persistCoins]);
 
   const handleOpenGarage = useCallback(() => {
+    persistCoins();
     engineRef.current?.setScreenState('garage');
     setScreenState('garage');
-  }, []);
+  }, [persistCoins]);
 
   const handleCloseGarage = useCallback(() => {
+    persistCoins();
     engineRef.current?.setScreenState('playing');
     setScreenState('playing');
-  }, []);
+  }, [persistCoins]);
 
   const handlePurchaseUpgrade = useCallback((upgradeId: string) => {
     if (!engineRef.current) return false;
     const success = engineRef.current.purchaseUpgrade(upgradeId);
     if (success) {
-      setUpgrades(engineRef.current.getUpgrades());
-      setStats((prev) => ({ ...prev, coins: engineRef.current!.getCoins() }));
+      const newUpgrades = engineRef.current.getUpgrades();
+      const newCoins = engineRef.current.getCoins();
+      setUpgrades(newUpgrades);
+      setStats((prev) => ({ ...prev, coins: newCoins }));
+      setCompanyProgress((prev) => {
+        const updated: CompanyProgress = {
+          ...prev,
+          coins: newCoins,
+          upgrades: newUpgrades,
+        };
+        saveCompanyProgress(updated);
+        return updated;
+      });
     }
     return success;
   }, []);
 
   const handleSelectTruckColor = useCallback((color: TruckColorOption) => {
     setSelectedColorHex(color.hex);
-    engineRef.current?.setTruckColor(color.hex, color.bladeHex);
+    if (engineRef.current) {
+      engineRef.current.setTruckColor(color.hex, color.bladeHex);
+    }
+    setCompanyProgress((prev) => {
+      const updated: CompanyProgress = {
+        ...prev,
+        selectedColorHex: color.hex,
+        selectedBladeHex: color.bladeHex,
+      };
+      saveCompanyProgress(updated);
+      return updated;
+    });
   }, []);
 
   const handleNextLevel = useCallback(() => {

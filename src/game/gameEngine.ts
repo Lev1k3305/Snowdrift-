@@ -14,7 +14,7 @@ import {
   glowWindowMat,
 } from './proceduralModels.ts';
 import { SnowSystem } from './snowSystem.ts';
-import { FloatingText, GameStats, LevelConfig, Obstacle, PerformanceMode, ScreenState, TimeOfDay, WeatherType } from './types.ts';
+import { CompanyProgress, FloatingText, GameStats, LevelConfig, Obstacle, PerformanceMode, ScreenState, TimeOfDay, WeatherType } from './types.ts';
 
 // Pre-allocated reusable math vectors for zero GC in render loop
 const _tempScreenVec = new THREE.Vector3();
@@ -514,6 +514,14 @@ export class GameEngine {
   /**
    * Load or reload a level
    */
+  public initCompanyProgress(progress: CompanyProgress) {
+    this.coins = progress.coins;
+    this.upgrades = { ...progress.upgrades };
+    this.selectedTruckColor = progress.selectedColorHex;
+    this.selectedBladeColor = progress.selectedBladeHex;
+    this.rebuildTruck();
+  }
+
   public loadLevel(levelIndex: number) {
     this.currentLevelIndex = levelIndex;
     this.currentLevel = LEVELS[levelIndex] || LEVELS[0];
