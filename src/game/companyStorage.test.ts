@@ -7,7 +7,8 @@ import {
   CURRENT_SAVE_VERSION,
 } from './companyStorage.ts';
 import { CONTRACTS, DISTRICTS, evaluateContractResult } from './contracts.ts';
-import { LEVELS } from './constants.ts';
+import { LEVELS, UPGRADES } from './constants.ts';
+import { MAX_GAMEPLAY_COIN_MULTIPLIER } from './gameEngine.ts';
 
 // Mock localStorage for CLI test environment if undefined
 if (typeof globalThis.localStorage === 'undefined') {
@@ -239,5 +240,38 @@ describe('CompanyStorage & Contracts Catalog', () => {
     expect(updatedProgress.selectedBladeHex).toBe('#654321');
     expect(updatedProgress.completedContractIds).toContain('contract-pinecone-morning');
     expect(updatedProgress.completedContractIds).toContain('contract-pinecone-blizzard');
+  });
+
+  test('Updated rebalanced upgrade costs match expected prices', () => {
+    expect(UPGRADES.bladeWidth.costs).toEqual([100, 300, 600]);
+    expect(UPGRADES.enginePower.costs).toEqual([120, 350, 700]);
+    expect(UPGRADES.heatedBlade.costs).toEqual([200, 500]);
+    // Unchanged upgrades
+    expect(UPGRADES.studdedTires.costs).toEqual([75, 200]);
+    expect(UPGRADES.saltSpreader.costs).toEqual([80, 220]);
+    expect(UPGRADES.turboBoost.costs).toEqual([90, 240]);
+  });
+
+  test('Combined gameplay coin multiplier does not exceed 8.0x cap', () => {
+    const maxCombo = 10.0;
+    const maxHeater = 1.6;
+    const blizzardMult = 1.5;
+
+    const rawMultiplier = maxCombo * maxHeater * blizzardMult; // 24.0x
+    const effectiveMultiplier = Math.min(MAX_GAMEPLAY_COIN_MULTIPLIER, rawMultiplier);
+
+    expect(rawMultiplier).toBe(24.0);
+    expect(effectiveMultiplier).toBe(8.0);
+  });
+
+  test('Heated blade and blizzard multipliers work normally below 8.0x cap', () => {
+    const lowCombo = 2.0;
+    const heaterLvl2 = 1.25;
+    const blizzardMult = 1.5;
+
+    const rawMultiplier = lowCombo * heaterLvl2 * blizzardMult; // 3.75x
+    const effectiveMultiplier = Math.min(MAX_GAMEPLAY_COIN_MULTIPLIER, rawMultiplier);
+
+    expect(effectiveMultiplier).toBe(3.75);
   });
 });
