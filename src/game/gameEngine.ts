@@ -16,6 +16,13 @@ import {
 import { SnowSystem } from './snowSystem.ts';
 import { CompanyProgress, FloatingText, GameStats, LevelConfig, Obstacle, PerformanceMode, ScreenState, TimeOfDay, WeatherType } from './types.ts';
 
+/**
+ * Maximum combined multiplier applied to cell-clearing gameplay coin earnings.
+ * Prevents runaway coin inflation when combining high combos (up to 10.0x),
+ * heated de-icer upgrades (up to 1.6x), and blizzard weather bonuses (1.5x).
+ */
+export const MAX_GAMEPLAY_COIN_MULTIPLIER = 8.0;
+
 // Pre-allocated reusable math vectors for zero GC in render loop
 const _tempScreenVec = new THREE.Vector3();
 const _camOffset = new THREE.Vector3();
@@ -1194,7 +1201,12 @@ export class GameEngine {
       const heaterMultiplier = hasHeater ? (this.upgrades.heatedBlade === 3 ? 1.6 : 1.25) : 1.0;
       // Blizzard weather provides 1.5x score and coin bonus for plowing in extreme conditions!
       const blizzardMultiplier = this.weather === 'blizzard' ? 1.5 : 1.0;
-      const coinGain = Math.max(1, Math.round(result.cellsClearedDelta * 0.4 * heaterMultiplier * blizzardMultiplier * this.combo));
+
+      // Capped combined gameplay coin multiplier
+      const rawCoinMultiplier = heaterMultiplier * blizzardMultiplier * this.combo;
+      const effectiveCoinMultiplier = Math.min(MAX_GAMEPLAY_COIN_MULTIPLIER, rawCoinMultiplier);
+
+      const coinGain = Math.max(1, Math.round(result.cellsClearedDelta * 0.4 * effectiveCoinMultiplier));
 
       this.score += Math.round(result.cellsClearedDelta * 10 * blizzardMultiplier * this.combo);
       this.coins += coinGain;

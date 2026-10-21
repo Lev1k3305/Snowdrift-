@@ -16,7 +16,7 @@ export const UPGRADES: Record<string, UpgradeInfo> = {
     description: 'Wider blade clears wider paths in a single pass.',
     icon: 'shovel',
     maxLevel: 4,
-    costs: [50, 150, 350],
+    costs: [100, 300, 600],
     getStatText: (lvl) => {
       const widths = ['1.8m Standard', '2.5m Steel Blade', '3.3m Heavy V-Plow', '4.2m Industrial Wing'];
       return widths[lvl - 1] || `${(1.8 + (lvl - 1) * 0.8).toFixed(1)}m`;
@@ -28,7 +28,7 @@ export const UPGRADES: Record<string, UpgradeInfo> = {
     description: 'Increases top speed and plow pushing torque through heavy snow.',
     icon: 'gauge',
     maxLevel: 4,
-    costs: [60, 180, 400],
+    costs: [120, 350, 700],
     getStatText: (lvl) => {
       const speeds = ['130 HP (28 km/h)', '190 HP (36 km/h)', '270 HP (45 km/h)', '360 HP Turbo (55 km/h)'];
       return speeds[lvl - 1];
@@ -52,7 +52,7 @@ export const UPGRADES: Record<string, UpgradeInfo> = {
     description: 'Thermal coils melt snow instantly, yielding high-value bonus snowflake coins.',
     icon: 'flame',
     maxLevel: 3,
-    costs: [100, 280],
+    costs: [200, 500],
     getStatText: (lvl) => {
       const bonuses = ['Unheated (+0%)', 'Electric Coils (+25% Coins)', 'Superheated Radiant (+60% Coins)'];
       return bonuses[lvl - 1];
