@@ -152,10 +152,12 @@ export function evaluateContractResult(
   const success = finalPercent >= contract.targetPercent;
   const gameplayCoins = Math.max(0, endingCoins - startingCoins);
 
+  const applyPenalty = !success && finalPercent < contract.penalty.minPercentRequired;
+
   const baseRewardCoins = success ? contract.rewardCoins : 0;
   const rewardReputation = success ? contract.rewardReputation : 0;
-  const penaltyCoins = success ? 0 : contract.penalty.failureFeeCoins;
-  const penaltyReputation = success ? 0 : contract.penalty.reputationLoss;
+  const penaltyCoins = applyPenalty ? contract.penalty.failureFeeCoins : 0;
+  const penaltyReputation = applyPenalty ? contract.penalty.reputationLoss : 0;
 
   const netCoinsGained = baseRewardCoins + gameplayCoins - penaltyCoins;
   const netReputationGained = rewardReputation - penaltyReputation;

@@ -162,8 +162,33 @@ describe('CompanyStorage & Contracts Catalog', () => {
     expect(updatedProgress.activeContractId).toBeNull();
   });
 
-  test('evaluateContractResult applies failure penalty and does not pay reward for failed completion', () => {
-    const contract = CONTRACTS[0]; // targetPercent: 80, penalty: failureFeeCoins: 30, reputationLoss: 10
+  test('evaluateContractResult pays rewards on completion exactly at targetPercent', () => {
+    const contract = CONTRACTS[0]; // targetPercent: 80, minPercentRequired: 50
+    const initialProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 100,
+      reputation: 10,
+      completedContractIds: [],
+    };
+
+    const { result, updatedProgress } = evaluateContractResult(
+      contract,
+      80, // Exactly at targetPercent
+      100,
+      100,
+      initialProgress
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.baseRewardCoins).toBe(contract.rewardCoins);
+    expect(result.rewardReputation).toBe(contract.rewardReputation);
+    expect(result.penaltyCoins).toBe(0);
+    expect(result.penaltyReputation).toBe(0);
+    expect(updatedProgress.completedContractIds).toContain(contract.id);
+  });
+
+  test('evaluateContractResult fails without penalty when finalPercent is between minPercentRequired and targetPercent', () => {
+    const contract = CONTRACTS[0]; // targetPercent: 80, minPercentRequired: 50, failureFeeCoins: 30, reputationLoss: 10
     const initialProgress = {
       ...DEFAULT_COMPANY_PROGRESS,
       coins: 100,
@@ -171,10 +196,53 @@ describe('CompanyStorage & Contracts Catalog', () => {
       completedContractIds: [],
     };
 
-    // Plowing cleared 40% (< 80%), collected 10 gameplay coins (ending 110)
+    // Plowing cleared 79% (below target 80%, but >= minPercentRequired 50%)
     const { result, updatedProgress } = evaluateContractResult(
       contract,
-      40,
+      79,
+      100,
+      115, // 15 gameplay coins
+      initialProgress
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.baseRewardCoins).toBe(0);
+    expect(result.rewardReputation).toBe(0);
+    expect(result.penaltyCoins).toBe(0);
+    expect(result.penaltyReputation).toBe(0);
+    expect(result.netCoinsGained).toBe(15);
+    expect(result.netReputationGained).toBe(0);
+    expect(result.updatedCoins).toBe(115);
+    expect(result.updatedReputation).toBe(20);
+    expect(updatedProgress.completedContractIds).not.toContain(contract.id);
+
+    // Also test exactly at minPercentRequired (50%)
+    const atMinResult = evaluateContractResult(
+      contract,
+      50,
+      100,
+      100,
+      initialProgress
+    ).result;
+
+    expect(atMinResult.success).toBe(false);
+    expect(atMinResult.penaltyCoins).toBe(0);
+    expect(atMinResult.penaltyReputation).toBe(0);
+  });
+
+  test('evaluateContractResult applies failure penalty when finalPercent is below minPercentRequired', () => {
+    const contract = CONTRACTS[0]; // targetPercent: 80, minPercentRequired: 50, failureFeeCoins: 30, reputationLoss: 10
+    const initialProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 100,
+      reputation: 20,
+      completedContractIds: [],
+    };
+
+    // Plowing cleared 49% (< minPercentRequired 50%), collected 10 gameplay coins (ending 110)
+    const { result, updatedProgress } = evaluateContractResult(
+      contract,
+      49,
       100,
       110,
       initialProgress
@@ -189,6 +257,31 @@ describe('CompanyStorage & Contracts Catalog', () => {
     expect(result.updatedCoins).toBe(80);
     expect(result.updatedReputation).toBe(10);
     expect(updatedProgress.completedContractIds).not.toContain(contract.id);
+  });
+
+  test('evaluateContractResult preserves non-negative clamping for zero or missing reputation and balance', () => {
+    const contract = CONTRACTS[5]; // failureFeeCoins: 200, reputationLoss: 50, minPercentRequired: 80
+    const zeroRepProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 10,
+      reputation: 0, // Zero initial reputation
+    };
+
+    const { result, updatedProgress } = evaluateContractResult(
+      contract,
+      10, // Far below minPercentRequired 80
+      10,
+      10,
+      zeroRepProgress
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.penaltyCoins).toBe(200);
+    expect(result.penaltyReputation).toBe(50);
+    expect(result.updatedCoins).toBe(0); // Clamped to 0
+    expect(result.updatedReputation).toBe(0); // Clamped to 0
+    expect(updatedProgress.coins).toBe(0);
+    expect(updatedProgress.reputation).toBe(0);
   });
 
   test('evaluateContractResult safely clamps balance and reputation to non-negative minimum', () => {
