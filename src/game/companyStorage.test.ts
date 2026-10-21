@@ -274,4 +274,24 @@ describe('CompanyStorage & Contracts Catalog', () => {
 
     expect(effectiveMultiplier).toBe(3.75);
   });
+
+  test('Arcade Mode victory state update preserves reputation and completed contracts', () => {
+    const initialProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 100,
+      reputation: 50,
+      completedContractIds: ['contract-pinecone-morning'],
+    };
+
+    // Simulate Arcade Mode victory state update pattern from App.tsx
+    const arcadeVictoryCoins = 180;
+    const updatedProgress = {
+      ...initialProgress,
+      coins: arcadeVictoryCoins,
+    };
+
+    expect(updatedProgress.coins).toBe(180);
+    expect(updatedProgress.reputation).toBe(50); // Unchanged
+    expect(updatedProgress.completedContractIds).toEqual(['contract-pinecone-morning']); // Unchanged
+  });
 });

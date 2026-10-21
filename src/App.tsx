@@ -123,27 +123,12 @@ export default function App() {
 
           setScreenState('contract_results');
         } else {
-          // Arcade Mode Victory
+          // Arcade Mode Victory: Persist coins earned, but keep career reputation & completed contracts unchanged
           setScreenState('victory');
           setCompanyProgress((prev) => {
-            const currentLvl = LEVELS[selectedLevelIndexRef.current] || LEVELS[0];
-            const matchingContracts = CONTRACTS.filter(
-              (c) => c.locationId === currentLvl.id && vStats.percent >= c.targetPercent
-            );
-            const newCompleted = [...prev.completedContractIds];
-            let bonusRep = 0;
-            matchingContracts.forEach((c) => {
-              if (!newCompleted.includes(c.id)) {
-                newCompleted.push(c.id);
-                bonusRep += c.rewardReputation;
-              }
-            });
-
             const updated: CompanyProgress = {
               ...prev,
               coins: vStats.coins,
-              reputation: prev.reputation + bonusRep,
-              completedContractIds: newCompleted,
             };
             saveCompanyProgress(updated);
             return updated;
