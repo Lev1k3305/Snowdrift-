@@ -1251,7 +1251,8 @@ export class GameEngine {
     if (result.driftsHit.length > 0) {
       result.driftsHit.forEach((d) => {
         const blizzardMult = this.weather === 'blizzard' ? 1.5 : 1.0;
-        const bonusCoins = Math.round(d.value * this.combo * blizzardMult);
+        const effectiveDriftMultiplier = Math.min(MAX_GAMEPLAY_COIN_MULTIPLIER, this.combo * blizzardMult);
+        const bonusCoins = Math.round(d.value * effectiveDriftMultiplier);
         this.coins += bonusCoins;
         this.score += Math.round(d.value * 20 * blizzardMult);
         synthAudio.playSnowFlakeChime(1.4);
