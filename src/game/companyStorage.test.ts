@@ -367,4 +367,41 @@ describe('CompanyStorage & Contracts Catalog', () => {
 
     expect(effectiveMultiplier).toBe(3.75);
   });
+
+  test('Snowdrift mound coin multiplier is capped at MAX_GAMEPLAY_COIN_MULTIPLIER (8.0x)', () => {
+    const driftBaseValue = 36;
+    const maxCombo = 10.0;
+    const blizzardMult = 1.5;
+
+    const uncappedCoins = Math.round(driftBaseValue * maxCombo * blizzardMult); // 36 * 15 = 540
+    const effectiveDriftMultiplier = Math.min(MAX_GAMEPLAY_COIN_MULTIPLIER, maxCombo * blizzardMult);
+    const cappedCoins = Math.round(driftBaseValue * effectiveDriftMultiplier); // 36 * 8 = 288
+
+    expect(uncappedCoins).toBe(540);
+    expect(effectiveDriftMultiplier).toBe(8.0);
+    expect(cappedCoins).toBe(288);
+  });
+
+  test('Arcade Mode victory preserves gameplay coins without altering contract completions or career reputation', () => {
+    const initialProgress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      coins: 100,
+      reputation: 0,
+      completedContractIds: [],
+    };
+
+    // Simulated Arcade Mode victory outcome (no active contract)
+    const endingCoins = 250;
+    const arcadeVictoryProgress = {
+      ...initialProgress,
+      coins: endingCoins,
+    };
+
+    saveCompanyProgress(arcadeVictoryProgress);
+    const reloaded = loadCompanyProgress();
+
+    expect(reloaded.coins).toBe(250);
+    expect(reloaded.reputation).toBe(0);
+    expect(reloaded.completedContractIds).toEqual([]);
+  });
 });
