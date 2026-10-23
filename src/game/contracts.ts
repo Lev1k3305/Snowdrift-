@@ -196,3 +196,125 @@ export function evaluateContractResult(
 
   return { result, updatedProgress };
 }
+
+export type ContractUnlockStatus = 'completed' | 'active' | 'locked' | 'available';
+
+/**
+ * Returns contract unlock state based on company progress.
+ */
+export function getContractStatus(
+  contract: Contract,
+  progress: CompanyProgress
+): ContractUnlockStatus {
+  if (progress.completedContractIds.includes(contract.id)) {
+    return 'completed';
+  }
+  if (progress.activeContractId === contract.id) {
+    return 'active';
+  }
+  const minRep = contract.minReputationRequired ?? 0;
+  if (progress.reputation < minRep) {
+    return 'locked';
+  }
+  return 'available';
+}
+
+/**
+ * Calculates remaining reputation needed to unlock a contract.
+ */
+export function getContractReputationRemaining(
+  contract: Contract,
+  currentReputation: number
+): number {
+  const required = contract.minReputationRequired ?? 0;
+  return Math.max(0, required - currentReputation);
+}
+
+export interface DistrictUnlockInfo {
+  isUnlocked: boolean;
+  requiredReputation: number;
+  remainingReputation: number;
+  completedCount: number;
+  totalContracts: number;
+}
+
+/**
+ * Derives district unlock status and contract completion info.
+ */
+export function getDistrictStatus(
+  district: DistrictConfig,
+  progress: CompanyProgress
+): DistrictUnlockInfo {
+  const isUnlocked = progress.reputation >= district.requiredReputation;
+  const remainingReputation = Math.max(0, district.requiredReputation - progress.reputation);
+  const districtContracts = CONTRACTS.filter((c) =>
+    district.unlockedContracts.includes(c.id)
+  );
+  const completedCount = districtContracts.filter((c) =>
+    progress.completedContractIds.includes(c.id)
+  ).length;
+
+  return {
+    isUnlocked,
+    requiredReputation: district.requiredReputation,
+    remainingReputation,
+    completedCount,
+    totalContracts: districtContracts.length,
+  };
+}
+
+export interface ReputationMilestone {
+  nextThreshold: number;
+  remainingReputation: number;
+  targetName: string;
+  type: 'contract' | 'district' | 'max';
+}
+
+/**
+ * Derives the next reputation milestone target for unlock progression.
+ */
+export function getNextReputationMilestone(progress: CompanyProgress): ReputationMilestone {
+  const currentRep = progress.reputation;
+
+  const lockedDistricts = DISTRICTS.filter((d) => d.requiredReputation > currentRep);
+  const lockedContracts = CONTRACTS.filter(
+    (c) => (c.minReputationRequired ?? 0) > currentRep
+  );
+
+  if (lockedDistricts.length === 0 && lockedContracts.length === 0) {
+    return {
+      nextThreshold: currentRep,
+      remainingReputation: 0,
+      targetName: 'Maximum Progression',
+      type: 'max',
+    };
+  }
+
+  let lowestThreshold = Infinity;
+  let targetName = '';
+  let milestoneType: 'contract' | 'district' = 'contract';
+
+  for (const d of lockedDistricts) {
+    if (d.requiredReputation < lowestThreshold) {
+      lowestThreshold = d.requiredReputation;
+      targetName = d.name;
+      milestoneType = 'district';
+    }
+  }
+
+  for (const c of lockedContracts) {
+    const minRep = c.minReputationRequired ?? 0;
+    if (minRep < lowestThreshold) {
+      lowestThreshold = minRep;
+      targetName = c.title;
+      milestoneType = 'contract';
+    }
+  }
+
+  return {
+    nextThreshold: lowestThreshold,
+    remainingReputation: Math.max(0, lowestThreshold - currentRep),
+    targetName,
+    type: milestoneType,
+  };
+}
