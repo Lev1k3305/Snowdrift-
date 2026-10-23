@@ -7,7 +7,11 @@ export const DISTRICTS: DistrictConfig[] = [
     description: 'Quiet cul-de-sacs and cozy residential driveways requiring regular snow clearing.',
     locationId: 'pinecone-lane',
     requiredReputation: 0,
-    unlockedContracts: ['contract-pinecone-morning', 'contract-pinecone-blizzard'],
+    unlockedContracts: [
+      'contract-pinecone-morning',
+      'contract-pinecone-blizzard',
+      'contract-pinecone-flawless',
+    ],
   },
   {
     id: 'district-snowberry',
@@ -15,7 +19,11 @@ export const DISTRICTS: DistrictConfig[] = [
     description: 'High-traffic town square, local bakery alley, and village promenade.',
     locationId: 'snowberry-square',
     requiredReputation: 70,
-    unlockedContracts: ['contract-snowberry-market', 'contract-snowberry-express'],
+    unlockedContracts: [
+      'contract-snowberry-market',
+      'contract-snowberry-blizzard',
+      'contract-snowberry-express',
+    ],
   },
   {
     id: 'district-frostpeak',
@@ -23,7 +31,11 @@ export const DISTRICTS: DistrictConfig[] = [
     description: 'Challenging alpine serpentine roads connecting high-altitude lodges.',
     locationId: 'frostpeak-pass',
     requiredReputation: 210,
-    unlockedContracts: ['contract-frostpeak-night', 'contract-frostpeak-storm'],
+    unlockedContracts: [
+      'contract-frostpeak-night',
+      'contract-frostpeak-summit',
+      'contract-frostpeak-storm',
+    ],
   },
 ];
 
@@ -65,6 +77,24 @@ export const CONTRACTS: Contract[] = [
     minReputationRequired: 25,
   },
   {
+    id: 'contract-pinecone-flawless',
+    title: 'Pinecone Resident Showcase',
+    clientName: 'Pinecone Homeowners Association',
+    description: 'Deliver pristine driveway and curb clearance for the neighborhood HOA inspection.',
+    locationId: 'pinecone-lane',
+    targetPercent: 92,
+    rewardCoins: 280,
+    rewardReputation: 55,
+    penalty: {
+      failureFeeCoins: 60,
+      reputationLoss: 18,
+      minPercentRequired: 70,
+    },
+    weather: 'clear',
+    timeOfDay: 'morning',
+    minReputationRequired: 45,
+  },
+  {
     id: 'contract-snowberry-market',
     title: 'Winter Festival Marketplace',
     clientName: 'Snowberry Merchants Guild',
@@ -81,6 +111,24 @@ export const CONTRACTS: Contract[] = [
     weather: 'clear',
     timeOfDay: 'midday',
     minReputationRequired: 70,
+  },
+  {
+    id: 'contract-snowberry-blizzard',
+    title: 'Snowberry Downtown Emergency',
+    clientName: 'Snowberry Emergency Response',
+    description: 'A sudden whiteout blizzard has blinded the commercial district. Open emergency bus lanes and fire hydrants.',
+    locationId: 'snowberry-square',
+    targetPercent: 88,
+    rewardCoins: 520,
+    rewardReputation: 95,
+    penalty: {
+      failureFeeCoins: 110,
+      reputationLoss: 28,
+      minPercentRequired: 65,
+    },
+    weather: 'blizzard',
+    timeOfDay: 'sunset',
+    minReputationRequired: 100,
   },
   {
     id: 'contract-snowberry-express',
@@ -117,6 +165,24 @@ export const CONTRACTS: Contract[] = [
     weather: 'light_snow',
     timeOfDay: 'night',
     minReputationRequired: 210,
+  },
+  {
+    id: 'contract-frostpeak-summit',
+    title: 'Frostpeak Summit Ridge Patrol',
+    clientName: 'Alpine Observatory Operations',
+    description: 'High altitude clearing shift across narrow mountain ridges to keep research station supply lines open.',
+    locationId: 'frostpeak-pass',
+    targetPercent: 92,
+    rewardCoins: 780,
+    rewardReputation: 135,
+    penalty: {
+      failureFeeCoins: 170,
+      reputationLoss: 40,
+      minPercentRequired: 75,
+    },
+    weather: 'light_snow',
+    timeOfDay: 'sunset',
+    minReputationRequired: 260,
   },
   {
     id: 'contract-frostpeak-storm',

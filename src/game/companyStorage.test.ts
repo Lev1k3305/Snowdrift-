@@ -260,7 +260,7 @@ describe('CompanyStorage & Contracts Catalog', () => {
   });
 
   test('evaluateContractResult preserves non-negative clamping for zero or missing reputation and balance', () => {
-    const contract = CONTRACTS[5]; // failureFeeCoins: 200, reputationLoss: 50, minPercentRequired: 80
+    const contract = CONTRACTS.find((c) => c.id === 'contract-frostpeak-storm')!; // failureFeeCoins: 200, reputationLoss: 50, minPercentRequired: 80
     const zeroRepProgress = {
       ...DEFAULT_COMPANY_PROGRESS,
       coins: 10,
@@ -285,7 +285,7 @@ describe('CompanyStorage & Contracts Catalog', () => {
   });
 
   test('evaluateContractResult safely clamps balance and reputation to non-negative minimum', () => {
-    const contract = CONTRACTS[5]; // penalty: failureFeeCoins: 200, reputationLoss: 50
+    const contract = CONTRACTS.find((c) => c.id === 'contract-frostpeak-storm')!; // penalty: failureFeeCoins: 200, reputationLoss: 50
     const brokeProgress = {
       ...DEFAULT_COMPANY_PROGRESS,
       coins: 20,

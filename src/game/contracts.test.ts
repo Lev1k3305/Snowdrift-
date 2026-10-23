@@ -165,14 +165,14 @@ describe('Stage 4J — Career Hub Progression Clarity', () => {
     expect(status1.requiredReputation).toBe(0);
     expect(status1.remainingReputation).toBe(0);
     expect(status1.completedCount).toBe(1);
-    expect(status1.totalContracts).toBe(2);
+    expect(status1.totalContracts).toBe(3);
 
     const status2 = getDistrictStatus(d2, progress);
     expect(status2.isUnlocked).toBe(false);
     expect(status2.requiredReputation).toBe(70);
     expect(status2.remainingReputation).toBe(45); // 70 - 25
     expect(status2.completedCount).toBe(0);
-    expect(status2.totalContracts).toBe(2);
+    expect(status2.totalContracts).toBe(3);
   });
 
   test('getNextReputationMilestone identifies next target threshold and remaining reputation', () => {
@@ -184,19 +184,20 @@ describe('Stage 4J — Career Hub Progression Clarity', () => {
     expect(m0.type).toBe('contract');
     expect(m0.targetName).toBe('Suburban Snowdrift Emergency');
 
-    // 25 REP: Next milestone is Snowberry District / Snowberry Market at 70 REP
+    // 25 REP: Next milestone is C3 (Pinecone Resident Showcase at 45 REP)
     const prog25 = { ...DEFAULT_COMPANY_PROGRESS, reputation: 25 };
     const m25 = getNextReputationMilestone(prog25);
-    expect(m25.nextThreshold).toBe(70);
-    expect(m25.remainingReputation).toBe(45);
+    expect(m25.nextThreshold).toBe(45);
+    expect(m25.remainingReputation).toBe(20);
+    expect(m25.targetName).toBe('Pinecone Resident Showcase');
 
-    // 210 REP: Next milestone is C6 (Extreme Peak Storm Clearance at 320 REP)
+    // 210 REP: Next milestone is Frostpeak Summit Ridge Patrol at 260 REP
     const prog210 = { ...DEFAULT_COMPANY_PROGRESS, reputation: 210 };
     const m210 = getNextReputationMilestone(prog210);
-    expect(m210.nextThreshold).toBe(320);
-    expect(m210.remainingReputation).toBe(110);
+    expect(m210.nextThreshold).toBe(260);
+    expect(m210.remainingReputation).toBe(50);
     expect(m210.type).toBe('contract');
-    expect(m210.targetName).toBe('Extreme Peak Storm Clearance');
+    expect(m210.targetName).toBe('Frostpeak Summit Ridge Patrol');
   });
 
   test('getNextReputationMilestone handles maximum progression edge case gracefully', () => {
@@ -304,5 +305,59 @@ describe('Stage 4K — Career Contract Results UX', () => {
 
     const nextFromC1 = getNextAvailableContract(c1.id, progressWith25Rep);
     expect(nextFromC1?.id).toBe(c2.id);
+  });
+});
+
+describe('Stage 5B — Career Contract Catalog Expansion', () => {
+  test('New Stage 5B contracts exist with unique IDs, valid locations, and valid weather/timeOfDay', () => {
+    expect(CONTRACTS).toHaveLength(9);
+
+    const cFlawless = CONTRACTS.find((c) => c.id === 'contract-pinecone-flawless');
+    const cBlizzard = CONTRACTS.find((c) => c.id === 'contract-snowberry-blizzard');
+    const cSummit = CONTRACTS.find((c) => c.id === 'contract-frostpeak-summit');
+
+    expect(cFlawless).toBeDefined();
+    expect(cBlizzard).toBeDefined();
+    expect(cSummit).toBeDefined();
+
+    expect(cFlawless?.locationId).toBe('pinecone-lane');
+    expect(cFlawless?.targetPercent).toBe(92);
+    expect(cFlawless?.weather).toBe('clear');
+    expect(cFlawless?.timeOfDay).toBe('morning');
+    expect(cFlawless?.minReputationRequired).toBe(45);
+
+    expect(cBlizzard?.locationId).toBe('snowberry-square');
+    expect(cBlizzard?.targetPercent).toBe(88);
+    expect(cBlizzard?.weather).toBe('blizzard');
+    expect(cBlizzard?.timeOfDay).toBe('sunset');
+    expect(cBlizzard?.minReputationRequired).toBe(100);
+
+    expect(cSummit?.locationId).toBe('frostpeak-pass');
+    expect(cSummit?.targetPercent).toBe(92);
+    expect(cSummit?.weather).toBe('light_snow');
+    expect(cSummit?.timeOfDay).toBe('sunset');
+    expect(cSummit?.minReputationRequired).toBe(260);
+  });
+
+  test('All 9 contracts have strictly ascending minReputationRequired thresholds across catalog', () => {
+    const minReps = CONTRACTS.map((c) => c.minReputationRequired ?? 0);
+    const sortedMinReps = [...minReps].sort((a, b) => a - b);
+
+    expect(minReps).toEqual(sortedMinReps);
+    expect(minReps).toEqual([0, 25, 45, 70, 100, 130, 210, 260, 320]);
+  });
+
+  test('All contracts link only to valid level locations and districts link all contracts', () => {
+    const validLevelIds = ['pinecone-lane', 'snowberry-square', 'frostpeak-pass'];
+
+    for (const contract of CONTRACTS) {
+      expect(validLevelIds).toContain(contract.locationId);
+    }
+
+    const allDistrictContractIds = DISTRICTS.flatMap((d) => d.unlockedContracts);
+    expect(allDistrictContractIds).toHaveLength(9);
+    for (const contract of CONTRACTS) {
+      expect(allDistrictContractIds).toContain(contract.id);
+    }
   });
 });
