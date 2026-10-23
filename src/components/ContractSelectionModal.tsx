@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { CompanyProgress, Contract } from '../game/types.ts';
-import { CONTRACTS, DISTRICTS } from '../game/contracts.ts';
+import {
+  CONTRACTS,
+  DISTRICTS,
+  getContractStatus,
+  getContractReputationRemaining,
+  getDistrictStatus,
+  ContractUnlockStatus,
+} from '../game/contracts.ts';
 import { LEVELS } from '../game/constants.ts';
 import {
   Building2,
@@ -12,13 +19,13 @@ import {
   ChevronRight,
   ShieldAlert,
   CloudSnow,
-  Sun,
-  CloudLightning,
   MapPin,
   Clock,
   Target,
   Play,
   FileText,
+  Flame,
+  Info,
 } from 'lucide-react';
 
 interface ContractSelectionModalProps {
@@ -27,28 +34,24 @@ interface ContractSelectionModalProps {
   onBack: () => void;
 }
 
-export type ContractStatus = 'available' | 'locked' | 'completed';
-
 export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
   companyProgress,
   onAcceptContract,
   onBack,
 }) => {
-  const [selectedContractId, setSelectedContractId] = useState<string>(CONTRACTS[0]?.id || '');
+  const [selectedContractId, setSelectedContractId] = useState<string>(
+    companyProgress.activeContractId || CONTRACTS[0]?.id || ''
+  );
 
-  const getContractStatus = (contract: Contract): ContractStatus => {
-    if (companyProgress.completedContractIds.includes(contract.id)) {
-      return 'completed';
-    }
-    const minRep = contract.minReputationRequired ?? 0;
-    if (companyProgress.reputation < minRep) {
-      return 'locked';
-    }
-    return 'available';
-  };
+  const selectedContract =
+    CONTRACTS.find((c) => c.id === selectedContractId) || CONTRACTS[0];
+  const selectedStatus: ContractUnlockStatus = selectedContract
+    ? getContractStatus(selectedContract, companyProgress)
+    : 'available';
 
-  const selectedContract = CONTRACTS.find((c) => c.id === selectedContractId) || CONTRACTS[0];
-  const selectedStatus = selectedContract ? getContractStatus(selectedContract) : 'available';
+  const remainingRepForSelected = selectedContract
+    ? getContractReputationRemaining(selectedContract, companyProgress.reputation)
+    : 0;
 
   const selectedLevel = selectedContract
     ? LEVELS.find((l) => l.id === selectedContract.locationId)
@@ -102,29 +105,51 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
         {/* Left Side: District & Contract Catalog */}
         <div className="lg:col-span-5 space-y-4 max-h-[600px] overflow-y-auto pr-1 custom-scrollbar">
           {DISTRICTS.map((district) => {
+            const districtStatus = getDistrictStatus(district, companyProgress);
             const districtContracts = CONTRACTS.filter((c) =>
               district.unlockedContracts.includes(c.id)
             );
 
             return (
-              <div key={district.id} className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800">
+              <div
+                key={district.id}
+                className={`rounded-2xl p-4 border ${
+                  districtStatus.isUnlocked
+                    ? 'bg-slate-900/60 border-slate-800'
+                    : 'bg-rose-950/20 border-rose-900/40'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/80">
                   <div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-cyan-400" />
+                      <MapPin
+                        className={`w-4 h-4 ${
+                          districtStatus.isUnlocked ? 'text-cyan-400' : 'text-rose-400'
+                        }`}
+                      />
                       <h3 className="text-sm font-bold text-slate-200">{district.name}</h3>
                     </div>
                     <p className="text-[11px] text-slate-400 line-clamp-1">{district.description}</p>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono font-semibold">
-                    Req. Rep: {district.requiredReputation}
-                  </span>
+                  {districtStatus.isUnlocked ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-mono font-semibold">
+                      Unlocked ({districtStatus.completedCount}/{districtStatus.totalContracts})
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-rose-950/90 text-rose-300 border border-rose-800/80 font-mono font-bold flex items-center gap-1 shrink-0">
+                      <Lock className="w-3 h-3" /> Req: {district.requiredReputation} REP
+                    </span>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   {districtContracts.map((contract) => {
-                    const status = getContractStatus(contract);
+                    const status = getContractStatus(contract, companyProgress);
                     const isSelected = contract.id === selectedContractId;
+                    const remainingRep = getContractReputationRemaining(
+                      contract,
+                      companyProgress.reputation
+                    );
 
                     return (
                       <button
@@ -140,6 +165,9 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
                           {status === 'completed' && (
                             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                           )}
+                          {status === 'active' && (
+                            <Flame className="w-5 h-5 text-amber-400 shrink-0" />
+                          )}
                           {status === 'locked' && (
                             <Lock className="w-5 h-5 text-rose-400/80 shrink-0" />
                           )}
@@ -154,11 +182,19 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
                               <span>{contract.title}</span>
                             </div>
                             <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                              <span className="text-amber-400 font-semibold">
-                                +{contract.rewardCoins} coins
-                              </span>
-                              <span>·</span>
-                              <span className="text-cyan-300">+{contract.rewardReputation} REP</span>
+                              {status === 'locked' ? (
+                                <span className="text-rose-300 font-semibold">
+                                  Req: {contract.minReputationRequired ?? 0} REP (Need {remainingRep} REP)
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="text-amber-400 font-semibold">
+                                    +{contract.rewardCoins} coins
+                                  </span>
+                                  <span>·</span>
+                                  <span className="text-cyan-300">+{contract.rewardReputation} REP</span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -167,6 +203,11 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
                           {status === 'completed' && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
                               Completed
+                            </span>
+                          )}
+                          {status === 'active' && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800/60">
+                              Active
                             </span>
                           )}
                           {status === 'locked' && (
@@ -202,6 +243,11 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
                 {selectedStatus === 'completed' && (
                   <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Completed
+                  </span>
+                )}
+                {selectedStatus === 'active' && (
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-amber-400" /> Active Contract
                   </span>
                 )}
                 {selectedStatus === 'locked' && (
@@ -290,6 +336,30 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
               </div>
             </div>
 
+            {/* Locked Explanation Banner */}
+            {selectedStatus === 'locked' && (
+              <div className="bg-rose-950/40 border border-rose-800/80 p-4 rounded-xl flex items-start gap-3 mb-4">
+                <Lock className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-rose-200/90 leading-relaxed">
+                  <span className="font-bold text-rose-300 block mb-0.5">Contract Locked — Reputation Required</span>
+                  This work order requires <strong className="text-white">{selectedContract.minReputationRequired ?? 0} REP</strong>.
+                  Your current company reputation is <strong className="text-cyan-300">{companyProgress.reputation} REP</strong> (<strong className="text-amber-300">{remainingRepForSelected} REP remaining</strong>).
+                  <span className="block mt-1 text-slate-300">Complete available contracts in unlocked districts to earn reputation.</span>
+                </div>
+              </div>
+            )}
+
+            {/* Active Contract Banner */}
+            {selectedStatus === 'active' && (
+              <div className="bg-amber-950/40 border border-amber-500/50 p-4 rounded-xl flex items-start gap-3 mb-4">
+                <Flame className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-200/90 leading-relaxed">
+                  <span className="font-bold text-amber-300 block mb-0.5">Active Contract Order</span>
+                  This work order is currently accepted and active for your plow fleet. Select Start to continue the shift.
+                </div>
+              </div>
+            )}
+
             {/* Contract Penalty terms */}
             <div className="bg-rose-950/30 border border-rose-900/50 p-4 rounded-xl flex items-start gap-3">
               <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
@@ -307,7 +377,12 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
             <div className="text-xs text-slate-400">
               {selectedStatus === 'locked' && (
                 <span className="text-rose-400 font-semibold">
-                  Gain {selectedContract.minReputationRequired! - companyProgress.reputation} more reputation to unlock
+                  Need {remainingRepForSelected} more reputation to unlock
+                </span>
+              )}
+              {selectedStatus === 'active' && (
+                <span className="text-amber-300 font-semibold">
+                  Contract accepted and in progress. Ready for dispatch.
                 </span>
               )}
               {selectedStatus === 'completed' && (
@@ -333,7 +408,13 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
             >
               <Play className="w-4 h-4 fill-current" />
               <span>
-                {selectedStatus === 'completed' ? 'REPLAY CONTRACT' : 'ACCEPT & START CONTRACT'}
+                {selectedStatus === 'locked'
+                  ? `LOCKED (${remainingRepForSelected} REP NEEDED)`
+                  : selectedStatus === 'active'
+                  ? 'RESUME ACTIVE CONTRACT'
+                  : selectedStatus === 'completed'
+                  ? 'REPLAY CONTRACT'
+                  : 'ACCEPT & START CONTRACT'}
               </span>
             </button>
           </div>

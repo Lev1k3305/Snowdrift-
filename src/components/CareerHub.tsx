@@ -1,7 +1,28 @@
 import React from 'react';
 import { CompanyProgress } from '../game/types.ts';
-import { CONTRACTS } from '../game/contracts.ts';
-import { Building2, Coins, Award, FileText, Wrench, Gamepad2, ArrowLeft, CheckCircle2, ChevronRight, Snowflake } from 'lucide-react';
+import {
+  CONTRACTS,
+  DISTRICTS,
+  getContractStatus,
+  getDistrictStatus,
+  getNextReputationMilestone,
+} from '../game/contracts.ts';
+import {
+  Building2,
+  Coins,
+  Award,
+  FileText,
+  Wrench,
+  Gamepad2,
+  ArrowLeft,
+  CheckCircle2,
+  ChevronRight,
+  Snowflake,
+  Lock,
+  MapPin,
+  Flame,
+  Target,
+} from 'lucide-react';
 
 interface CareerHubProps {
   companyProgress: CompanyProgress;
@@ -21,6 +42,19 @@ export const CareerHub: React.FC<CareerHubProps> = ({
   const completedCount = companyProgress.completedContractIds.length;
   const totalContracts = CONTRACTS.length;
   const completionPercentage = Math.round((completedCount / totalContracts) * 100);
+
+  const milestone = getNextReputationMilestone(companyProgress);
+  const activeContract = companyProgress.activeContractId
+    ? CONTRACTS.find((c) => c.id === companyProgress.activeContractId)
+    : null;
+
+  const availableContractsCount = CONTRACTS.filter(
+    (c) => getContractStatus(c, companyProgress) === 'available'
+  ).length;
+
+  const lockedContractsCount = CONTRACTS.filter(
+    (c) => getContractStatus(c, companyProgress) === 'locked'
+  ).length;
 
   return (
     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-30 flex flex-col justify-between p-4 sm:p-8 overflow-y-auto font-sans text-white select-none">
@@ -76,6 +110,58 @@ export const CareerHub: React.FC<CareerHubProps> = ({
             </p>
 
             <div className="space-y-4">
+              {/* Reputation & Next Milestone Progress */}
+              <div className="bg-slate-950/60 p-3.5 rounded-xl border border-cyan-500/20">
+                <div className="flex justify-between items-center text-xs mb-1">
+                  <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5 text-cyan-400" /> Current Reputation
+                  </span>
+                  <span className="text-cyan-300 font-black font-mono">
+                    {companyProgress.reputation} REP
+                  </span>
+                </div>
+
+                {milestone.type === 'max' ? (
+                  <div className="mt-2 text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    Maximum Career Reputation Achieved!
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-2 text-[11px] text-slate-300 flex justify-between items-center">
+                      <span className="truncate pr-2">
+                        Next: <strong className="text-white">{milestone.targetName}</strong>
+                      </span>
+                      <span className="text-amber-400 font-bold shrink-0">
+                        {milestone.remainingReputation} REP remaining
+                      </span>
+                    </div>
+
+                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden mt-1.5">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-amber-400 rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(
+                              5,
+                              Math.round(
+                                (companyProgress.reputation / milestone.nextThreshold) * 100
+                              )
+                            )
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                      <span>{companyProgress.reputation} REP</span>
+                      <span>Target: {milestone.nextThreshold} REP</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Completion Overview */}
               <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80">
                 <div className="flex justify-between items-center text-xs mb-1.5">
                   <span className="text-slate-400 font-medium">Contracts Completed</span>
@@ -83,7 +169,7 @@ export const CareerHub: React.FC<CareerHubProps> = ({
                 </div>
                 <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-full transition-all duration-500"
                     style={{ width: `${completionPercentage}%` }}
                   />
                 </div>
@@ -92,7 +178,7 @@ export const CareerHub: React.FC<CareerHubProps> = ({
               <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs text-slate-300 font-medium">Career Progress</span>
+                  <span className="text-xs text-slate-300 font-medium">Career Completion</span>
                 </div>
                 <span className="text-xs font-mono font-bold text-emerald-400">
                   {completionPercentage}%
@@ -126,9 +212,18 @@ export const CareerHub: React.FC<CareerHubProps> = ({
               </p>
             </div>
 
+            {activeContract && (
+              <div className="mt-3 p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs flex items-center gap-2">
+                <Flame className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="truncate">
+                  Active: <strong>{activeContract.title}</strong>
+                </span>
+              </div>
+            )}
+
             <div className="mt-6 flex items-center justify-between pt-3 border-t border-slate-800/80">
               <span className="text-xs font-semibold text-cyan-400">
-                {CONTRACTS.length - completedCount} Contracts Available
+                {availableContractsCount} Available · {lockedContractsCount} Locked
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-cyan-300 font-bold">
                 Career Catalog
@@ -185,6 +280,64 @@ export const CareerHub: React.FC<CareerHubProps> = ({
 
             <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-slate-300 transition-colors" />
           </button>
+
+          {/* District Unlock Status Summary Card */}
+          <div className="sm:col-span-2 bg-slate-900/80 rounded-2xl p-5 border border-slate-800 shadow-xl">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/80">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-cyan-400" />
+                <h3 className="text-sm font-bold text-slate-200">District Unlock Status</h3>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Current: <strong className="text-cyan-300 font-mono">{companyProgress.reputation} REP</strong>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {DISTRICTS.map((district) => {
+                const status = getDistrictStatus(district, companyProgress);
+                return (
+                  <div
+                    key={district.id}
+                    className={`p-3 rounded-xl border flex flex-col justify-between ${
+                      status.isUnlocked
+                        ? 'bg-slate-950/70 border-slate-800 text-slate-200'
+                        : 'bg-rose-950/20 border-rose-900/40 text-slate-400'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-100 truncate">
+                          {district.name}
+                        </span>
+                        {status.isUnlocked ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold shrink-0">
+                            Unlocked
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 font-bold flex items-center gap-1 shrink-0">
+                            <Lock className="w-3 h-3" /> Locked
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[11px] text-slate-400 mt-1">
+                        {status.isUnlocked ? (
+                          <span className="text-emerald-400 font-medium">
+                            {status.completedCount} / {status.totalContracts} Contracts Completed
+                          </span>
+                        ) : (
+                          <span className="text-rose-300 font-semibold">
+                            Requires {district.requiredReputation} REP ({status.remainingReputation} REP remaining)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 

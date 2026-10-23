@@ -107,3 +107,105 @@ describe('Stage 4I — Career Reputation Progression & Unlock Sequence', () => {
     expect(c6.penalty.minPercentRequired).toBe(80);
   });
 });
+
+import {
+  getContractStatus,
+  getContractReputationRemaining,
+  getDistrictStatus,
+  getNextReputationMilestone,
+} from './contracts.ts';
+
+describe('Stage 4J — Career Hub Progression Clarity', () => {
+  test('getContractStatus accurately distinguishes available, active, completed, and locked states', () => {
+    const c1 = CONTRACTS.find((c) => c.id === 'contract-pinecone-morning')!; // minRep: 0
+    const c2 = CONTRACTS.find((c) => c.id === 'contract-pinecone-blizzard')!; // minRep: 25
+
+    // State A: Fresh profile (0 REP, 0 completed, no active)
+    const freshProgress = { ...DEFAULT_COMPANY_PROGRESS, reputation: 0 };
+    expect(getContractStatus(c1, freshProgress)).toBe('available');
+    expect(getContractStatus(c2, freshProgress)).toBe('locked');
+
+    // State B: Active contract
+    const activeProgress = { ...freshProgress, activeContractId: c1.id };
+    expect(getContractStatus(c1, activeProgress)).toBe('active');
+
+    // State C: Completed contract
+    const completedProgress = { ...freshProgress, completedContractIds: [c1.id], reputation: 25 };
+    expect(getContractStatus(c1, completedProgress)).toBe('completed');
+    expect(getContractStatus(c2, completedProgress)).toBe('available');
+  });
+
+  test('getContractReputationRemaining calculates exact remaining reputation needed', () => {
+    const c2 = CONTRACTS.find((c) => c.id === 'contract-pinecone-blizzard')!; // minRep: 25
+    const c3 = CONTRACTS.find((c) => c.id === 'contract-snowberry-market')!; // minRep: 70
+    const c6 = CONTRACTS.find((c) => c.id === 'contract-frostpeak-storm')!; // minRep: 320
+
+    expect(getContractReputationRemaining(c2, 0)).toBe(25);
+    expect(getContractReputationRemaining(c2, 10)).toBe(15);
+    expect(getContractReputationRemaining(c2, 25)).toBe(0);
+    expect(getContractReputationRemaining(c2, 50)).toBe(0);
+
+    expect(getContractReputationRemaining(c3, 25)).toBe(45);
+    expect(getContractReputationRemaining(c6, 210)).toBe(110);
+  });
+
+  test('getDistrictStatus computes unlock status and completed contract counts', () => {
+    const d1 = DISTRICTS.find((d) => d.id === 'district-pinecone')!; // reqRep: 0
+    const d2 = DISTRICTS.find((d) => d.id === 'district-snowberry')!; // reqRep: 70
+
+    // Profile with 25 REP, C1 completed
+    const progress = {
+      ...DEFAULT_COMPANY_PROGRESS,
+      reputation: 25,
+      completedContractIds: ['contract-pinecone-morning'],
+    };
+
+    const status1 = getDistrictStatus(d1, progress);
+    expect(status1.isUnlocked).toBe(true);
+    expect(status1.requiredReputation).toBe(0);
+    expect(status1.remainingReputation).toBe(0);
+    expect(status1.completedCount).toBe(1);
+    expect(status1.totalContracts).toBe(2);
+
+    const status2 = getDistrictStatus(d2, progress);
+    expect(status2.isUnlocked).toBe(false);
+    expect(status2.requiredReputation).toBe(70);
+    expect(status2.remainingReputation).toBe(45); // 70 - 25
+    expect(status2.completedCount).toBe(0);
+    expect(status2.totalContracts).toBe(2);
+  });
+
+  test('getNextReputationMilestone identifies next target threshold and remaining reputation', () => {
+    // 0 REP: Next milestone is C2 (Suburban Snowdrift Emergency at 25 REP)
+    const prog0 = { ...DEFAULT_COMPANY_PROGRESS, reputation: 0 };
+    const m0 = getNextReputationMilestone(prog0);
+    expect(m0.nextThreshold).toBe(25);
+    expect(m0.remainingReputation).toBe(25);
+    expect(m0.type).toBe('contract');
+    expect(m0.targetName).toBe('Suburban Snowdrift Emergency');
+
+    // 25 REP: Next milestone is Snowberry District / Snowberry Market at 70 REP
+    const prog25 = { ...DEFAULT_COMPANY_PROGRESS, reputation: 25 };
+    const m25 = getNextReputationMilestone(prog25);
+    expect(m25.nextThreshold).toBe(70);
+    expect(m25.remainingReputation).toBe(45);
+
+    // 210 REP: Next milestone is C6 (Extreme Peak Storm Clearance at 320 REP)
+    const prog210 = { ...DEFAULT_COMPANY_PROGRESS, reputation: 210 };
+    const m210 = getNextReputationMilestone(prog210);
+    expect(m210.nextThreshold).toBe(320);
+    expect(m210.remainingReputation).toBe(110);
+    expect(m210.type).toBe('contract');
+    expect(m210.targetName).toBe('Extreme Peak Storm Clearance');
+  });
+
+  test('getNextReputationMilestone handles maximum progression edge case gracefully', () => {
+    const maxProg = { ...DEFAULT_COMPANY_PROGRESS, reputation: 350 };
+    const mMax = getNextReputationMilestone(maxProg);
+
+    expect(mMax.type).toBe('max');
+    expect(mMax.remainingReputation).toBe(0);
+    expect(mMax.targetName).toBe('Maximum Progression');
+    expect(mMax.nextThreshold).toBe(350);
+  });
+});
