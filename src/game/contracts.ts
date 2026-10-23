@@ -14,7 +14,7 @@ export const DISTRICTS: DistrictConfig[] = [
     name: 'Snowberry Commercial Village',
     description: 'High-traffic town square, local bakery alley, and village promenade.',
     locationId: 'snowberry-square',
-    requiredReputation: 100,
+    requiredReputation: 70,
     unlockedContracts: ['contract-snowberry-market', 'contract-snowberry-express'],
   },
   {
@@ -22,7 +22,7 @@ export const DISTRICTS: DistrictConfig[] = [
     name: 'Frostpeak Mountain Pass',
     description: 'Challenging alpine serpentine roads connecting high-altitude lodges.',
     locationId: 'frostpeak-pass',
-    requiredReputation: 250,
+    requiredReputation: 210,
     unlockedContracts: ['contract-frostpeak-night', 'contract-frostpeak-storm'],
   },
 ];
@@ -62,7 +62,7 @@ export const CONTRACTS: Contract[] = [
     },
     weather: 'blizzard',
     timeOfDay: 'midday',
-    minReputationRequired: 40,
+    minReputationRequired: 25,
   },
   {
     id: 'contract-snowberry-market',
@@ -80,7 +80,7 @@ export const CONTRACTS: Contract[] = [
     },
     weather: 'clear',
     timeOfDay: 'midday',
-    minReputationRequired: 100,
+    minReputationRequired: 70,
   },
   {
     id: 'contract-snowberry-express',
@@ -98,7 +98,7 @@ export const CONTRACTS: Contract[] = [
     },
     weather: 'light_snow',
     timeOfDay: 'sunset',
-    minReputationRequired: 160,
+    minReputationRequired: 130,
   },
   {
     id: 'contract-frostpeak-night',
@@ -116,7 +116,7 @@ export const CONTRACTS: Contract[] = [
     },
     weather: 'light_snow',
     timeOfDay: 'night',
-    minReputationRequired: 250,
+    minReputationRequired: 210,
   },
   {
     id: 'contract-frostpeak-storm',
@@ -134,7 +134,7 @@ export const CONTRACTS: Contract[] = [
     },
     weather: 'blizzard',
     timeOfDay: 'night',
-    minReputationRequired: 350,
+    minReputationRequired: 320,
   },
 ];
 
