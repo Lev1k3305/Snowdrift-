@@ -66,6 +66,7 @@ export default function App() {
     return null;
   });
   const [contractResult, setContractResult] = useState<ContractResult | null>(null);
+  const [previousCompanyProgress, setPreviousCompanyProgress] = useState<CompanyProgress>(companyProgress);
 
   // Single evaluation payout guard refs for async engine callbacks
   const activeContractRef = useRef<Contract | null>(activeContract);
@@ -109,6 +110,7 @@ export default function App() {
           hasEvaluatedContractRef.current = true;
 
           setCompanyProgress((prev) => {
+            setPreviousCompanyProgress(prev);
             const { result, updatedProgress } = evaluateContractResult(
               curActiveContract,
               vStats.percent,
@@ -539,9 +541,12 @@ export default function App() {
       {screenState === 'contract_results' && contractResult && (
         <ContractResultModal
           result={contractResult}
+          companyProgress={companyProgress}
+          previousCompanyProgress={previousCompanyProgress}
           onReturnToHub={handleReturnToHub}
           onRetry={handleRetryContract}
           onOpenGarage={handleOpenGarage}
+          onContinueNextContract={handleAcceptContract}
         />
       )}
     </div>

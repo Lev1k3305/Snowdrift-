@@ -318,3 +318,66 @@ export function getNextReputationMilestone(progress: CompanyProgress): Reputatio
     type: milestoneType,
   };
 }
+
+/**
+ * Identifies districts that became newly unlocked between two progress states.
+ */
+export function getNewlyUnlockedDistricts(
+  prevProgress: CompanyProgress,
+  newProgress: CompanyProgress
+): DistrictConfig[] {
+  return DISTRICTS.filter(
+    (district) =>
+      prevProgress.reputation < district.requiredReputation &&
+      newProgress.reputation >= district.requiredReputation
+  );
+}
+
+/**
+ * Identifies contracts that became newly unlocked (transitioned from locked to available)
+ * between two progress states.
+ */
+export function getNewlyUnlockedContracts(
+  prevProgress: CompanyProgress,
+  newProgress: CompanyProgress
+): Contract[] {
+  return CONTRACTS.filter((contract) => {
+    const prevStatus = getContractStatus(contract, prevProgress);
+    const newStatus = getContractStatus(contract, newProgress);
+    return prevStatus === 'locked' && newStatus === 'available';
+  });
+}
+
+/**
+ * Finds the next available, uncompleted career contract following a given contract ID.
+ */
+export function getNextAvailableContract(
+  currentContractId: string,
+  progress: CompanyProgress
+): Contract | null {
+  const currentIndex = CONTRACTS.findIndex((c) => c.id === currentContractId);
+
+  if (currentIndex !== -1) {
+    // Search forward from current contract
+    for (let i = currentIndex + 1; i < CONTRACTS.length; i++) {
+      if (getContractStatus(CONTRACTS[i], progress) === 'available') {
+        return CONTRACTS[i];
+      }
+    }
+    // Search from start if needed
+    for (let i = 0; i < currentIndex; i++) {
+      if (getContractStatus(CONTRACTS[i], progress) === 'available') {
+        return CONTRACTS[i];
+      }
+    }
+  } else {
+    // Fallback: search for first available contract
+    for (const contract of CONTRACTS) {
+      if (getContractStatus(contract, progress) === 'available') {
+        return contract;
+      }
+    }
+  }
+
+  return null;
+}
