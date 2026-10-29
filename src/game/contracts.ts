@@ -147,6 +147,7 @@ export const CONTRACTS: Contract[] = [
     weather: 'light_snow',
     timeOfDay: 'sunset',
     minReputationRequired: 130,
+    timeLimitSeconds: 120,
   },
   {
     id: 'contract-frostpeak-night',
@@ -213,9 +214,16 @@ export function evaluateContractResult(
   finalPercent: number,
   startingCoins: number,
   endingCoins: number,
-  currentCompanyProgress: CompanyProgress
+  currentCompanyProgress: CompanyProgress,
+  timeElapsedSeconds?: number
 ): { result: ContractResult; updatedProgress: CompanyProgress } {
-  const success = finalPercent >= contract.targetPercent;
+  const isTimeout =
+    contract.timeLimitSeconds != null &&
+    timeElapsedSeconds != null &&
+    timeElapsedSeconds >= contract.timeLimitSeconds &&
+    finalPercent < contract.targetPercent;
+
+  const success = finalPercent >= contract.targetPercent && !isTimeout;
   const gameplayCoins = Math.max(0, endingCoins - startingCoins);
 
   const applyPenalty = !success && finalPercent < contract.penalty.minPercentRequired;
@@ -250,6 +258,8 @@ export function evaluateContractResult(
     netReputationGained,
     updatedCoins,
     updatedReputation,
+    timeElapsed: timeElapsedSeconds,
+    isTimeout,
   };
 
   const updatedProgress: CompanyProgress = {

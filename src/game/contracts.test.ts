@@ -361,3 +361,141 @@ describe('Stage 5B — Career Contract Catalog Expansion', () => {
     }
   });
 });
+
+describe('Stage 5C — Time Attack Contracts Evaluation & Limits', () => {
+  const timedContract = CONTRACTS.find((c) => c.id === 'contract-snowberry-express')!; // target: 90%, min: 70%, limit: 120s, reward: 480 coins / 80 rep, penalty: 100 coins / 25 rep
+  const untimedContract = CONTRACTS.find((c) => c.id === 'contract-pinecone-morning')!; // target: 80%, min: 50%
+
+  test('Timed contract definition specifies timeLimitSeconds: 120 for contract-snowberry-express', () => {
+    expect(timedContract).toBeDefined();
+    expect(timedContract.timeLimitSeconds).toBe(120);
+    expect(untimedContract.timeLimitSeconds).toBeUndefined();
+  });
+
+  test('Timed contract succeeds when target is reached within time limit', () => {
+    const initialProgress = { ...DEFAULT_COMPANY_PROGRESS, coins: 100, reputation: 130 };
+
+    // Cleared 92% (>= 90%) in 105s (<= 120s)
+    const { result, updatedProgress } = evaluateContractResult(
+      timedContract,
+      92,
+      100,
+      140, // 40 gameplay coins
+      initialProgress,
+      105
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.isTimeout).toBe(false);
+    expect(result.baseRewardCoins).toBe(480);
+    expect(result.rewardReputation).toBe(80);
+    expect(result.penaltyCoins).toBe(0);
+    expect(result.penaltyReputation).toBe(0);
+    expect(result.netCoinsGained).toBe(480 + 40);
+    expect(result.timeElapsed).toBe(105);
+    expect(updatedProgress.completedContractIds).toContain('contract-snowberry-express');
+  });
+
+  test('Reaching target exactly at time limit succeeds', () => {
+    const initialProgress = { ...DEFAULT_COMPANY_PROGRESS, coins: 100, reputation: 130 };
+
+    // Cleared 90% (>= 90%) in 120s (== 120s)
+    const { result } = evaluateContractResult(
+      timedContract,
+      90,
+      100,
+      100,
+      initialProgress,
+      120
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.isTimeout).toBe(false);
+    expect(result.baseRewardCoins).toBe(480);
+    expect(result.rewardReputation).toBe(80);
+  });
+
+  test('Timeout occurs when target is not reached at the time limit', () => {
+    const initialProgress = { ...DEFAULT_COMPANY_PROGRESS, coins: 100, reputation: 130 };
+
+    // Cleared 88% (< 90% target) at 120s (== 120s limit)
+    const { result, updatedProgress } = evaluateContractResult(
+      timedContract,
+      88,
+      100,
+      120, // 20 gameplay coins
+      initialProgress,
+      120
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.isTimeout).toBe(true);
+    expect(result.baseRewardCoins).toBe(0);
+    expect(result.rewardReputation).toBe(0);
+    expect(result.penaltyCoins).toBe(0); // 88% >= 70% minPercentRequired, so no penalty
+    expect(result.penaltyReputation).toBe(0);
+    expect(result.netCoinsGained).toBe(20); // Retains gameplay coins
+    expect(updatedProgress.completedContractIds).not.toContain('contract-snowberry-express');
+  });
+
+  test('Timeout above or equal to minimum threshold waives failure penalty', () => {
+    const initialProgress = { ...DEFAULT_COMPANY_PROGRESS, coins: 100, reputation: 130 };
+
+    // Cleared 75% (>= 70% min, < 90% target) in 125s (> 120s)
+    const { result } = evaluateContractResult(
+      timedContract,
+      75,
+      100,
+      110,
+      initialProgress,
+      125
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.isTimeout).toBe(true);
+    expect(result.penaltyCoins).toBe(0);
+    expect(result.penaltyReputation).toBe(0);
+    expect(result.updatedCoins).toBe(110);
+  });
+
+  test('Timeout below minimum threshold applies standard failure penalty', () => {
+    const initialProgress = { ...DEFAULT_COMPANY_PROGRESS, coins: 100, reputation: 130 };
+
+    // Cleared 50% (< 70% min) in 120s
+    const { result, updatedProgress } = evaluateContractResult(
+      timedContract,
+      50,
+      100,
+      110, // 10 gameplay coins
+      initialProgress,
+      120
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.isTimeout).toBe(true);
+    expect(result.penaltyCoins).toBe(100);
+    expect(result.penaltyReputation).toBe(25);
+    expect(result.netCoinsGained).toBe(10 - 100); // -90 net
+    expect(updatedProgress.coins).toBe(10); // 100 - 90
+    expect(updatedProgress.reputation).toBe(105); // 130 - 25
+  });
+
+  test('Untimed contracts retain previous evaluation behavior regardless of elapsed time', () => {
+    const initialProgress = { ...DEFAULT_COMPANY_PROGRESS, coins: 100, reputation: 0 };
+
+    // Cleared 85% (>= 80% target) in 500s on untimed contract
+    const { result } = evaluateContractResult(
+      untimedContract,
+      85,
+      100,
+      120,
+      initialProgress,
+      500
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.isTimeout).toBe(false);
+    expect(result.baseRewardCoins).toBe(untimedContract.rewardCoins);
+    expect(result.rewardReputation).toBe(untimedContract.rewardReputation);
+  });
+});
