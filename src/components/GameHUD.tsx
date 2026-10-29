@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Volume2, VolumeX, Pause, Wrench, Sparkles, Zap, Flame, Compass, Sun, CloudSnow, Wind, Sunrise, Sunset, Moon, Clock, Smartphone, Gauge } from 'lucide-react';
-import { GameStats, LevelConfig } from '../game/types.ts';
+import { Contract, GameStats, LevelConfig } from '../game/types.ts';
 import { GameEngine } from '../game/gameEngine.ts';
 import { Minimap } from './Minimap.tsx';
 import { InstallPromptModal } from './InstallPromptModal.tsx';
@@ -8,6 +8,7 @@ import { InstallPromptModal } from './InstallPromptModal.tsx';
 interface GameHUDProps {
   stats: GameStats;
   level: LevelConfig;
+  activeContract?: Contract | null;
   engine: GameEngine | null;
   isMuted: boolean;
   onToggleMute: () => void;
@@ -22,6 +23,7 @@ interface GameHUDProps {
 export const GameHUD: React.FC<GameHUDProps> = ({
   stats,
   level,
+  activeContract,
   engine,
   isMuted,
   onToggleMute,
@@ -32,6 +34,14 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onCycleTimeOfDay,
   onCyclePerformance,
 }) => {
+  const timeLimit = activeContract?.timeLimitSeconds;
+  const remainingSeconds = timeLimit != null ? Math.max(0, Math.ceil(timeLimit - stats.timeElapsed)) : null;
+
+  const formatTimer = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
   const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Combo title
@@ -170,6 +180,23 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 />
               )}
             </div>
+
+            {/* Time Attack Shift Countdown Timer */}
+            {timeLimit != null && remainingSeconds != null && (
+              <div
+                className={`mt-2.5 flex items-center justify-between px-3 py-1.5 rounded-xl border font-mono text-xs transition-colors ${
+                  remainingSeconds <= 15
+                    ? 'bg-rose-950/90 border-rose-500 text-rose-300 animate-pulse font-bold'
+                    : 'bg-slate-950/80 border-slate-700 text-cyan-300 font-semibold'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Clock className={`w-3.5 h-3.5 ${remainingSeconds <= 15 ? 'text-rose-400' : 'text-cyan-400'}`} />
+                  <span className="uppercase text-[10px] tracking-wider text-slate-400">Shift Time Limit</span>
+                </div>
+                <span className="text-sm font-bold tracking-tight">{formatTimer(remainingSeconds)}</span>
+              </div>
+            )}
           </div>
         </div>
 

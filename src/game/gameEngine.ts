@@ -152,15 +152,17 @@ export class GameEngine {
   private touchHorn: boolean = false;
 
   // Callbacks to UI
+  private activeContractTimeLimit: number | null = null;
+
   private onStatsUpdate?: (stats: GameStats) => void;
-  private onVictory?: (stats: { percent: number; coins: number; maxCombo: number }) => void;
+  private onVictory?: (stats: { percent: number; coins: number; maxCombo: number; timeElapsed: number; isTimeout?: boolean }) => void;
   private onFloatingTextUpdate?: (texts: FloatingText[]) => void;
 
   constructor(
     container: HTMLElement,
     callbacks?: {
       onStatsUpdate?: (stats: GameStats) => void;
-      onVictory?: (stats: { percent: number; coins: number; maxCombo: number }) => void;
+      onVictory?: (stats: { percent: number; coins: number; maxCombo: number; timeElapsed: number; isTimeout?: boolean }) => void;
       onFloatingTextUpdate?: (texts: FloatingText[]) => void;
     }
   ) {
@@ -527,6 +529,10 @@ export class GameEngine {
     this.selectedTruckColor = progress.selectedColorHex;
     this.selectedBladeColor = progress.selectedBladeHex;
     this.rebuildTruck();
+  }
+
+  public setActiveContractTimeLimit(limitSeconds: number | null) {
+    this.activeContractTimeLimit = limitSeconds;
   }
 
   public loadLevel(levelIndex: number) {
@@ -1260,16 +1266,26 @@ export class GameEngine {
       });
     }
 
-    // Check Victory Condition
+    // Check Victory Condition or Timeout Expiration
     const percent = this.snowSystem.getPercentCleared();
-    if (!this.currentLevel.isEndless && percent >= this.currentLevel.targetPercent) {
-      synthAudio.playVictoryFanfare();
+    const targetMet = !this.currentLevel.isEndless && percent >= this.currentLevel.targetPercent;
+    const timeExpired =
+      this.activeContractTimeLimit != null &&
+      this.levelElapsedTime >= this.activeContractTimeLimit &&
+      !targetMet;
+
+    if (targetMet || timeExpired) {
+      if (targetMet) {
+        synthAudio.playVictoryFanfare();
+      }
       this.setScreenState('victory');
       if (this.onVictory) {
         this.onVictory({
           percent,
           coins: this.coins,
           maxCombo: this.maxComboThisRun,
+          timeElapsed: this.levelElapsedTime,
+          isTimeout: timeExpired,
         });
       }
     }

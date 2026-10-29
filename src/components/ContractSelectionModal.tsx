@@ -180,6 +180,11 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
                           <div>
                             <div className="text-xs font-bold text-slate-100 flex items-center gap-2">
                               <span>{contract.title}</span>
+                              {contract.timeLimitSeconds != null && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/90 text-cyan-300 border border-cyan-800/80 font-mono font-bold flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-cyan-400" /> {contract.timeLimitSeconds}s
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
                               {status === 'locked' ? (
@@ -317,14 +322,25 @@ export const ContractSelectionModal: React.FC<ContractSelectionModalProps> = ({
                 </div>
               </div>
 
-              <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
-                <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-300" /> Shift Time
+              {selectedContract.timeLimitSeconds != null ? (
+                <div className="bg-slate-950/80 p-3 rounded-xl border border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.15)]">
+                  <div className="flex items-center gap-1.5 text-xs text-cyan-300 font-semibold mb-1">
+                    <Clock className="w-3.5 h-3.5 text-cyan-400" /> Time Limit
+                  </div>
+                  <div className="text-base font-extrabold text-cyan-200">
+                    {Math.floor(selectedContract.timeLimitSeconds / 60)}m {selectedContract.timeLimitSeconds % 60}s
+                  </div>
                 </div>
-                <div className="text-xs font-bold text-slate-200 capitalize">
-                  {selectedContract.timeOfDay || selectedLevel?.timeOfDay || 'Morning'}
+              ) : (
+                <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-300" /> Shift Time
+                  </div>
+                  <div className="text-xs font-bold text-slate-200 capitalize">
+                    {selectedContract.timeOfDay || selectedLevel?.timeOfDay || 'Morning'}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
                 <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">

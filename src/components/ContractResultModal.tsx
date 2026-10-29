@@ -24,6 +24,7 @@ import {
   PlayCircle,
   ShieldAlert,
   Unlock,
+  Clock,
 } from 'lucide-react';
 
 interface ContractResultModalProps {
@@ -122,6 +123,10 @@ export const ContractResultModal: React.FC<ContractResultModalProps> = ({
           <h2 className="text-2xl font-black tracking-tight text-white">
             {success
               ? 'CONTRACT COMPLETED! 🏆'
+              : result.isTimeout
+              ? isFailedWithoutPenalty
+                ? 'TIME EXPIRED (NO PENALTY) ⌛'
+                : 'TIME EXPIRED (PENALTY APPLIED) ⛔'
               : isFailedWithoutPenalty
               ? 'CONTRACT MISSED (NO PENALTY) ⚠️'
               : 'CONTRACT FAILED (PENALTY APPLIED) ⛔'}
@@ -177,6 +182,10 @@ export const ContractResultModal: React.FC<ContractResultModalProps> = ({
             >
               {success
                 ? 'TARGET MET'
+                : result.isTimeout
+                ? isFailedWithoutPenalty
+                  ? 'TIME EXPIRED (THRESHOLD MET)'
+                  : 'TIME EXPIRED (BELOW MINIMUM)'
                 : isFailedWithoutPenalty
                 ? 'MINIMUM THRESHOLD CLEARED'
                 : 'BELOW MINIMUM THRESHOLD'}
@@ -210,6 +219,23 @@ export const ContractResultModal: React.FC<ContractResultModalProps> = ({
               style={{ width: `${Math.min(100, finalPercent)}%` }}
             />
           </div>
+
+          {/* Time Taken Breakdown for Timed Shifts */}
+          {contract.timeLimitSeconds != null && (
+            <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-slate-800/80 text-xs">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-cyan-400" /> Shift Time Taken
+              </span>
+              <span className="font-mono font-bold text-slate-200">
+                {result.timeElapsed != null
+                  ? `${Math.floor(result.timeElapsed / 60)}m ${Math.floor(result.timeElapsed % 60)}s`
+                  : 'N/A'}
+                <span className="text-slate-500 font-normal ml-1">
+                  / {Math.floor(contract.timeLimitSeconds / 60)}m {contract.timeLimitSeconds % 60}s limit
+                </span>
+              </span>
+            </div>
+          )}
 
           {/* Explanation badge for failure scenarios */}
           {isFailedWithoutPenalty && (

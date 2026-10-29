@@ -116,7 +116,8 @@ export default function App() {
               vStats.percent,
               startingCoinsRef.current,
               vStats.coins,
-              prev
+              prev,
+              vStats.timeElapsed
             );
             setContractResult(result);
             saveCompanyProgress(updatedProgress);
@@ -216,6 +217,7 @@ export default function App() {
 
       setSelectedLevelIndex(lvlIndex);
       if (engineRef.current) {
+        engineRef.current.setActiveContractTimeLimit(null);
         engineRef.current.loadLevel(lvlIndex);
         engineRef.current.setScreenState('playing');
       }
@@ -254,11 +256,12 @@ export default function App() {
   const handleRestart = useCallback(() => {
     persistCoins();
     if (engineRef.current) {
+      engineRef.current.setActiveContractTimeLimit(activeContract?.timeLimitSeconds ?? null);
       engineRef.current.loadLevel(selectedLevelIndex);
       engineRef.current.setScreenState('playing');
     }
     setScreenState('playing');
-  }, [selectedLevelIndex, persistCoins]);
+  }, [selectedLevelIndex, persistCoins, activeContract]);
 
   const handleHome = useCallback(() => {
     persistCoins();
@@ -353,6 +356,7 @@ export default function App() {
 
       setSelectedLevelIndex(lvlIndexToLoad);
       if (engineRef.current) {
+        engineRef.current.setActiveContractTimeLimit(contract.timeLimitSeconds ?? null);
         engineRef.current.loadLevel(lvlIndexToLoad);
         if (contract.weather) {
           engineRef.current.cycleWeather(contract.weather);
@@ -379,6 +383,7 @@ export default function App() {
 
     setSelectedLevelIndex(lvlIndexToLoad);
     if (engineRef.current) {
+      engineRef.current.setActiveContractTimeLimit(activeContract.timeLimitSeconds ?? null);
       engineRef.current.loadLevel(lvlIndexToLoad);
       if (activeContract.weather) {
         engineRef.current.cycleWeather(activeContract.weather);
@@ -481,6 +486,7 @@ export default function App() {
           <GameHUD
             stats={stats}
             level={currentLevel}
+            activeContract={activeContract}
             engine={engineRef.current}
             isMuted={isMuted}
             onToggleMute={handleToggleMute}

@@ -115,6 +115,7 @@ export interface Contract {
   weather?: WeatherType;
   timeOfDay?: TimeOfDay;
   minReputationRequired?: number;
+  timeLimitSeconds?: number;
 }
 
 export interface ContractResult {
@@ -131,6 +132,8 @@ export interface ContractResult {
   netReputationGained: number;
   updatedCoins: number;
   updatedReputation: number;
+  timeElapsed?: number;
+  isTimeout?: boolean;
 }
 
 export interface DistrictConfig {
